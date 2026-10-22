@@ -92,8 +92,8 @@ tools/     gen_k93ap_dts.py — ADT JSON -> ipad2-k93ap.dts generator
 config/    k93ap.config — kernel config fragment (from Cascadia p105ap)
 docs/      bootchain, software-only bypass, UART, porting deltas, references
 boot/      kDFU entry notes + host-side boot script
-scripts/   fetch-upstreams, extract-adt (IPSW -> decrypted ADT),
-           gen-dts (ADT -> ipad2-k93ap.dts), build-kernel, extract-firmware
+scripts/   fetch-upstreams, fetch-kernel, extract-adt (IPSW -> decrypted ADT),
+           gen-dts (ADT -> ipad2-k93ap.dts), build-kernel-k93, extract-firmware
 rootfs/    Alpine build notes
 build/, ipsw/, upstream/   gitignored working dirs (artifacts, IPSW, clones)
 ```

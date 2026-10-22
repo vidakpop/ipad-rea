@@ -31,6 +31,12 @@
 # address inside this exact iBEC build (docs/k93-ibec-autogo.md), and the
 # decryption keys below are that build's.  Another firmware needs both
 # re-derived.
+#
+# The IPSW (ipsw/iPad2,1_9.3.5_13G36_Restore.ipsw, ~1.4 GB) can be deleted once
+# this script has run: every blob it produces is cached under build/ (boot
+# chain in build/adt-k93ap/, peripheral firmware in build/fw-k93/).  Re-running
+# it just re-extracts from the IPSW; download the IPSW again from Apple if
+# needed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -24,7 +24,7 @@ echo "== ipad-rea boot-linux.sh (k93ap) =="
 for f in "$ZIMAGE" "$DTB" "$INITRD"; do
     if [ ! -f "$f" ]; then
         echo "missing artifact: $f" >&2
-        echo "build first: scripts/build-kernel.sh (and dtc the DTS)" >&2
+        echo "build first: scripts/build-kernel-k93.sh + dtc dts/ipad2-k93ap.dts" >&2
         exit 1
     fi
 done

@@ -21,9 +21,12 @@ clone() { # clone <url> <dir>
     fi
 }
 
+# Only Project Cascadia is needed: its sandcastle (S5L8940x) kernel patches,
+# pongo loader and build scripts are the base of this port.  Legacy-iOS-Kit
+# and iBSSloader are NOT part of the kDFU chain (the kDFU tweak + stock DFU
+# upload replaces both), so they are not fetched — clone them by hand if a
+# different entry path is ever wanted.
 clone https://github.com/rzxvx/Project-Cascadia.git   Project-Cascadia
-clone https://github.com/teutekeune/iBSSloader.git    iBSSloader
-clone https://github.com/LukeZGD/Legacy-iOS-Kit.git   Legacy-iOS-Kit
 
 echo
 echo "upstreams ready in $UP:"

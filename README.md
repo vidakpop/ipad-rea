@@ -19,8 +19,8 @@ iOS. Nothing is ever written to the iPad's NAND.
 | Board platform | s5l8940x | s5l8940x (same family) |
 | RAM | 512 MiB @ 0x80000000 | 512 MiB @ 0x80000000 |
 | Display | 1024x768 (simplefb) | 1024x768 (simplefb) |
-| WiFi/BT | BCM4334 (HSIC behind EHCI) | BCM4330 (bus TODO from ADT) |
-| Battery gauge | bq27540 (HDQ one-wire) | likely same — verify from ADT |
+| WiFi/BT | BCM4334 (HSIC behind EHCI) | BCM4330 on **SDIO** (confirmed from ADT); BT on uart3 @ 3 Mbaud |
+| Battery gauge | bq27540 (HDQ one-wire) | bq27540 on uart5 (confirmed from ADT) |
 
 ## Boot chain
 
@@ -64,13 +64,16 @@ needs for the Linux boot chain.
 
 - [x] Research: upstream identified (Project Cascadia, iBSSloader, Legacy-iOS-Kit)
 - [x] Software-only A5 bypass identified (kDFU from jailbreak)
-- [ ] Extract k93ap ADT from the iPad2,1 IPSW → generate base DTS, diff vs p105ap
-- [ ] Finalize dts/ipad2-k93ap.dts (started from adapted p105ap.dts, deltas marked)
+- [x] Extract k93ap ADT from the iPad2,1 IPSW → base DTS + diff (`scripts/extract-adt.sh`)
+- [x] Finalize dts/ipad2-k93ap.dts — now **fully generated from the k93 ADT**
+      (`scripts/gen-dts.sh` + `tools/gen_k93ap_dts.py`); deltas confirmed in
+      [docs/porting-deltas.md](docs/porting-deltas.md)
 - [ ] Adapt kernel config (config/k93ap.config) + apply Cascadia kernel patches
-- [ ] Build Linux 6.12 armhf
-- [ ] Regenerate the iBSS/iBEC chain for k93ap (pick + document the pinned iOS version)
+- [ ] Build Linux 6.12 armhf (needs arm cross-gcc + flex/bison — via Cascadia's docker image)
+- [ ] Regenerate the iBSS/iBEC chain for k93ap (9.3.5 pinned; find the autogo hook in the k93 iBEC)
+- [ ] Extract BCM4330 WiFi + digitizer firmware from the IPSW rootfs DMG
 - [ ] Enter kDFU from the jailbroken 9.3.5, boot initramfs on hardware
-- [ ] Alpine rootfs, USB ECM networking, touch, WiFi (BCM4330), desktop
+- [ ] Alpine rootfs, USB ECM networking, touch, WiFi (BCM4330 on SDIO), desktop
 
 ## Safety
 
@@ -84,12 +87,15 @@ needs for the Linux boot chain.
 ## Layout
 
 ```
-dts/       ipad2-k93ap.dts — device tree (adapted from Cascadia p105ap)
+dts/       ipad2-k93ap.dts — device tree (GENERATED from the k93 ADT)
+tools/     gen_k93ap_dts.py — ADT JSON -> ipad2-k93ap.dts generator
 config/    k93ap.config — kernel config fragment (from Cascadia p105ap)
 docs/      bootchain, software-only bypass, UART, porting deltas, references
 boot/      kDFU entry notes + host-side boot script
-scripts/   fetch-upstreams, extract-adt, build-kernel, extract-firmware
+scripts/   fetch-upstreams, extract-adt (IPSW -> decrypted ADT),
+           gen-dts (ADT -> ipad2-k93ap.dts), build-kernel, extract-firmware
 rootfs/    Alpine build notes
+build/, ipsw/, upstream/   gitignored working dirs (artifacts, IPSW, clones)
 ```
 
 ## References

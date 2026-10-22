@@ -52,10 +52,17 @@
 		 * No baud rate is given to earlycon on purpose: that tells it to
 		 * keep whatever divisor iBoot already programmed.
 		 *
-		 * console=tty0 only.  Do NOT set stdout-path to serial0 — OF
-		 * would still prefer ttySAC0 on probe (legacy console enabled)
-		 * and /dev/console open fails for init.  UART still probes for
-		 * /dev/ttySAC0; earlycon+keep_bootcon covers pre-fbcon printk.
+		 * console=ttySAC0 (UART) for build 1: the k93 framebuffer base
+		 * is not confirmed yet, so the simple-framebuffer node stays
+		 * disabled and tty0/fbcon has nothing to draw on.  Once the FB
+		 * base is found, flip framebuffer0 to okay and use
+		 * "console=ttySAC0 console=tty0" (both get printk; /dev/console
+		 * is the last one).
+		 *
+		 * Do NOT set stdout-path to serial0 — OF would still prefer
+		 * ttySAC0 on probe (legacy console enabled) and /dev/console
+		 * open fails for init.  earlycon+keep_bootcon covers printk
+		 * before the real console registers.
 		 *
 		 * g_cdc.dev_addr / g_cdc.host_addr pin the two ends of the USB
 		 * CDC-ECM link.  Without them u_ether picks a fresh random MAC on
@@ -64,7 +71,7 @@
 		 * of the first octet is 2), so they cannot collide with a real
 		 * vendor OUI: ...:01 = host side, ...:02 = device side (usb0).
 		 */
-		bootargs = "earlycon=s3c6400,0x32500000 keep_bootcon console=tty0 lpj=5000000 root=/dev/ram0 rw rootwait panic=10 loglevel=8 g_cdc.host_addr=02:10:5a:05:00:01 g_cdc.dev_addr=02:10:5a:05:00:02";
+		bootargs = "earlycon=s3c6400,0x32500000 keep_bootcon console=ttySAC0 lpj=5000000 root=/dev/ram0 rw rootwait panic=10 loglevel=8 g_cdc.host_addr=02:10:5a:05:00:01 g_cdc.dev_addr=02:10:5a:05:00:02";
 
 		/*
 		 * Placeholders.  The loader MUST overwrite both before jumping;
@@ -93,8 +100,10 @@
 		/*
 		 * iBoot's scanout buffer.  Must be no-map so the kernel never
 		 * hands these pages to the allocator while the CLCD is still
-		 * DMA-ing out of them.  Base is patched at boot together with
-		 * the framebuffer node below.
+		 * DMA-ing out of them.  Base is a placeholder (see framebuffer0
+		 * below): reserving the wrong 4 MB is harmless, reserving too
+		 * little around the REAL base is not — extend this when the k93
+		 * base is confirmed.
 		 */
 		fb_region: framebuffer@9f6fc000 {
 			reg = <0x9f6fc000 0x400000>;
@@ -106,9 +115,14 @@
 	 * simple-framebuffer over iBoot's already-running CLCD scanout.
 	 *
 	 * The static ADT's /vram node has reg = <0 0>: the base is assigned by
-	 * iBoot at runtime.  The loader reads the LIVE ADT's /vram (pongoOS
-	 * keeps iBoot's device tree in memory) and patches reg[0] here plus
-	 * fb_region above.  Portrait Recovery scanout: 768x1024, stride 3072.
+	 * iBoot at runtime.  On the kDFU path there is no pongoOS to read the
+	 * live ADT from — our stage1 loader does not patch the DTB — so the
+	 * base below is the P105 value carried over as a placeholder and the
+	 * node stays DISABLED until the k93 base is found (RE the k93 iBEC's
+	 * vram init, or read the live ADT's /vram from a jailbroken boot).
+	 * fbcon writing to a wrong DRAM address would corrupt allocated
+	 * memory, so an unverified base must not be enabled.  Portrait
+	 * Recovery scanout: 768x1024, stride 3072.
 	 *
 	 * TODO: confirm the pixel order on hardware.  a8r8g8b8 is what iBoot
 	 * uses on every other A5-era device, but if the display comes up with
@@ -123,7 +137,7 @@
 		stride = <3072>;
 		format = "a8r8g8b8";
 		memory-region = <&fb_region>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	cpus {
@@ -503,7 +517,7 @@
 
 		/*
 		 * SDIO host -- the Wi-Fi bus on this board.  The ADT sdio node
-		 * carries the wlan.*/bcom.* properties: the chip is a Broadcom
+		 * carries the wlan.* and bcom.* properties: the chip is a Broadcom
 		 * BCM4329 (ADT wifi-chipset "43291"; IPSW firmware dir
 		 * wifi/4329c0; NVRAM second.txt sromrev=3 devid=0x432e), 4-bit
 		 * bus at 51.3 MHz, AIC interrupt 39.  brcmfmac already knows

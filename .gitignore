@@ -1,0 +1,18 @@
+# upstream checkouts (fetched by scripts/fetch-upstreams.sh)
+upstream/
+
+# build artifacts
+build/
+logs/
+*.dtb
+*.o
+*.im4p
+
+# firmware / IPSW downloads (Apple binaries — never commit these)
+ipsw/
+saved/
+firmware/
+
+# python
+__pycache__/
+*.pyc

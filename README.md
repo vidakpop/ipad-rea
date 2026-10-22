@@ -19,7 +19,7 @@ iOS. Nothing is ever written to the iPad's NAND.
 | Board platform | s5l8940x | s5l8940x (same family) |
 | RAM | 512 MiB @ 0x80000000 | 512 MiB @ 0x80000000 |
 | Display | 1024x768 (simplefb) | 1024x768 (simplefb) |
-| WiFi/BT | BCM4334 (HSIC behind EHCI) | BCM4330 on **SDIO** (confirmed from ADT); BT on uart3 @ 3 Mbaud |
+| WiFi/BT | BCM4334 (HSIC behind EHCI) | BCM4329 on **SDIO** (ADT wifi-chipset "43291", fw dir wifi/4329c0); BT BCM43291A0 on uart3 @ 3 Mbaud |
 | Battery gauge | bq27540 (HDQ one-wire) | bq27540 on uart5 (confirmed from ADT) |
 
 ## Boot chain
@@ -90,10 +90,16 @@ needs for the Linux boot chain.
 dts/       ipad2-k93ap.dts — device tree (GENERATED from the k93 ADT)
 tools/     gen_k93ap_dts.py — ADT JSON -> ipad2-k93ap.dts generator
 config/    k93ap.config — kernel config fragment (from Cascadia p105ap)
-docs/      bootchain, software-only bypass, UART, porting deltas, references
-boot/      kDFU entry notes + host-side boot script
-scripts/   fetch-upstreams, fetch-kernel, extract-adt (IPSW -> decrypted ADT),
-           gen-dts (ADT -> ipad2-k93ap.dts), build-kernel-k93, extract-firmware
+loader/    stage1 loader (linux_boot_start.S/.c, linux-boot.ld) for kDFU autogo
+patches/   k93/ — kernel delta patches on top of the Cascadia set
+docs/      bootchain, software-only bypass, UART, porting deltas, references,
+           k93-ibec-autogo (RE findings), k93-boot-linux (boot procedure)
+boot/      boot-linux.sh — host-side kDFU boot script (the on-device step is
+           Legacy iOS Kit's restore.sh --kdfu)
+scripts/   fetch-upstreams, fetch-kernel-k93, extract-adt (IPSW -> decrypted ADT),
+           gen-dts (ADT -> ipad2-k93ap.dts), build-chain-k93 (iBSS/iBEC patches),
+           build-kernel-k93 (Linux 6.12 zImage), build-staging-k93 (dtb+loader+
+           staging-bundle.bin), extract-firmware
 rootfs/    Alpine build notes
 build/, ipsw/, upstream/   gitignored working dirs (artifacts, IPSW, clones)
 ```

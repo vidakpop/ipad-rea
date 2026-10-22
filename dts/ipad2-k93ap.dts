@@ -39,6 +39,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		serial3 = &uart3;
 	};
 
 	chosen {
@@ -328,6 +329,49 @@
 		};
 
 		/*
+		 * UART3: the BCM43291A0 Bluetooth module (ADT uart3/bluetooth,
+		 * "bluetooth,n88" — "Olympic Second Module" per the iOS 9.3.5
+		 * BlueTool strings; product-id 4767, vendor-id 1452 = 0x05ac
+		 * Apple).  iOS runs it at 3 Mbaud (transport-speed); with the
+		 * 24 MHz placeholder UART clock the Samsung divider tops out
+		 * at 1.5 Mbaud, so that is max-speed here (the same ceiling as
+		 * p105's BCM4334 on UART1).  hci_bcm loads the patchram at
+		 * 115200 and then raises both ends.
+		 *
+		 * REG_ON / wake GPIOs: the k93 ADT bluetooth node carries no
+		 * function-* gpio descriptors (unlike p105's), so
+		 * shutdown-gpios and device-wakeup-gpios are left out until a
+		 * live ioreg dump on the running iPad names the lines — a
+		 * wrong PMU GPIO could touch a power rail.  The 32 kHz sleep
+		 * clock supply is likewise unmodelled.
+		 *
+		 * The address: with Apple's patchram the chip reports the
+		 * same placeholder address on every unit (btbcm.c is taught
+		 * to treat it as one — Cascadia's 0001 patch), so a fixed
+		 * locally-administered address in the same family as the
+		 * gadget's and Wi-Fi's MACs: 02:10:5A:05:00:05 (bytes
+		 * reversed here).  Put the iPad's own (Settings > General >
+		 * About > Bluetooth) here to use that.
+		 */
+		uart3: serial@2800000 {
+			/* s5l8940x: UCON bit 10, the 24 MHz clock, which iBoot
+			 * sets only on the ports it uses (samsung_tty.c) */
+			compatible = "apple,s5l8940x-uart", "apple,s5l-uart",
+				     "samsung,s3c6400-uart";
+			reg = <0x2800000 0x1000>;
+			interrupts = <24>;
+			clocks = <&uart_clk>, <&uart_clk>;
+			clock-names = "uart", "clk_uart_baud0";
+			status = "okay";
+
+			bluetooth {
+				compatible = "brcm,bcm43291a0-bt";
+				max-speed = <1500000>;
+				local-bd-address = [05 00 05 5a 10 02];
+			};
+		};
+
+		/*
 		 * SPI1 -- transport for the multi-touch controller.
 		 *
 		 * Exposed as spidev on purpose.  Per the build plan, v1 drives the
@@ -459,10 +503,15 @@
 
 		/*
 		 * SDIO host -- the Wi-Fi bus on this board.  The ADT sdio node
-		 * carries the wlan.*/bcom.* properties (Broadcom BCM4330, 4-bit
-		 * bus at 51.3 MHz, AIC interrupt 39) plus a
-		 * function-device_reset descriptor whose gpio line still needs
-		 * confirming from a live ioreg dump on the running iPad.
+		 * carries the wlan.*/bcom.* properties: the chip is a Broadcom
+		 * BCM4329 (ADT wifi-chipset "43291"; IPSW firmware dir
+		 * wifi/4329c0; NVRAM second.txt sromrev=3 devid=0x432e), 4-bit
+		 * bus at 51.3 MHz, AIC interrupt 39.  brcmfmac already knows
+		 * the SDIO devid (SDIO_DEVICE_ID_BROADCOM_4329 = 0x4329) — no
+		 * driver patch needed, only the s5l8940x SDIO host driver.
+		 * The node also carries a function-device_reset descriptor
+		 * whose gpio line still needs confirming from a live ioreg
+		 * dump on the running iPad.
 		 *
 		 * Disabled: no upstream driver binds "sdio,s5l8940x" yet.  This
 		 * is new work relative to the p105 port (whose BCM4334 sat on

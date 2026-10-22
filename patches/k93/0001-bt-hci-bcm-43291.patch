@@ -1,0 +1,45 @@
+From: ipad-rea <ipad-rea@localhost>
+Date: Thu, 22 Oct 2026 00:00:00 +0300
+Subject: [PATCH] bluetooth: hci_bcm: add BCM43291A0 (iPad 2 "n88" module)
+
+The iPad 2 (iPad2,1 / k93ap) Bluetooth is a BCM43291A0 ("Olympic Second
+Module", per the iOS 9.3.5 BlueTool strings; ADT uart3/bluetooth
+"bluetooth,n88", product-id 4767, vendor-id 0x05ac).  hci_bcm's DT match
+table has no entry for it, so the serdev driver never binds and there is
+no Bluetooth.
+
+Add the compatible.  No device data: like the other 43xx entries the
+43291 uses the defaults (no autobaud quirks).
+
+The patchram file name is derived at runtime from the chip's LMP
+subversion via bcm_uart_subver_table (btbcm.c), which has no BCM43291
+row either.  That row needs the subversion the chip actually reports;
+it is read from the first boot's dmesg ("BCM (x.y.z) build NNNN" with
+hw_name == NULL) and added in a follow-up patch.  Until then hci_bcm
+binds and runs the chip on its default firmware at up to 1.5 Mbaud.
+
+drivers/net/wireless note for the Wi-Fi half of the same module: the
+Wi-Fi side is a BCM4329 on SDIO (ADT sdio node, wifi-chipset "43291",
+IPSW firmware dir wifi/4329c0, NVRAM sromrev=3), already in brcmfmac's
+SDIO table (SDIO_DEVICE_ID_BROADCOM_4329 = 0x4329) — no patch needed
+there, only the s5l8940x SDIO host driver.
+
+---
+ drivers/bluetooth/hci_bcm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/bluetooth/hci_bcm.c b/drivers/bluetooth/hci_bcm.c
+index 0000000000..1111111111 100644
+--- a/drivers/bluetooth/hci_bcm.c
++++ b/drivers/bluetooth/hci_bcm.c
+@@ -1597,6 +1597,7 @@ static struct bcm_device_data cyw55572_device_data = {
+ static const struct of_device_id bcm_bluetooth_of_match[] = {
+ 	{ .compatible = "brcm,bcm20702a1" },
+ 	{ .compatible = "brcm,bcm4329-bt" },
++	{ .compatible = "brcm,bcm43291a0-bt" },
+ 	{ .compatible = "brcm,bcm4330-bt" },
+ 	{ .compatible = "brcm,bcm4334-bt" },
+ 	{ .compatible = "brcm,bcm4345c5" },
+-- 
+2.43.0
+

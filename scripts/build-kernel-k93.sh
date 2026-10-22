@@ -88,6 +88,29 @@ if [ -d "$CASCADIA/patches/files-sandcastle-port" ]; then
         ' sh {} + )
 fi
 
+# k93 delta patches on top of the Cascadia set (BT chip match, later the
+# btbcm subver row once the hardware reports it).  Same reverse-check
+# idempotency as apply-kernel-edits.sh.
+echo "==> Applying k93 delta patches (patches/k93/)"
+shopt -s nullglob
+k93patches=("$ROOT"/patches/k93/*.patch)
+shopt -u nullglob
+if [ ${#k93patches[@]} -gt 0 ]; then
+    for p in "${k93patches[@]}"; do
+        name="$(basename "$p")"
+        if git -C "$TREE" apply --reverse --check "$p" 2>/dev/null; then
+            echo "  already applied: $name"
+        elif git -C "$TREE" apply "$p"; then
+            echo "  applied $name"
+        else
+            echo "error: $name does not apply to $TREE" >&2
+            exit 1
+        fi
+    done
+else
+    echo "  (none)"
+fi
+
 if [ "$CLEAN" = 1 ]; then
     echo "==> make mrproper"
     make -C "$TREE" mrproper >/dev/null

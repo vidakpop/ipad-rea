@@ -3,62 +3,70 @@
 # extract-adt.sh — get the iPad 2's Apple Device Tree and turn it into a
 # base DTS, to diff against dts/ipad2-k93ap.dts.
 #
-# The ADT is the hardware description (MMIO addresses, GPIO map, buses).
-# It ships inside the IPSW as DeviceTree.k93ap.*.im4p.
+# Pipeline:
+#   1. download the iPad2,1 9.3.5 (13G36) IPSW if not present
+#   2. extract DeviceTree.k93ap.img3 (plus iBSS/iBEC/kernelcache for later)
+#   3. decrypt the DeviceTree (AES-256-CBC, keys from The Apple Wiki)
+#   4. convert ADT -> DTS with Project Cascadia's adt_to_dts.py
+#   5. diff the generated base DTS against dts/ipad2-k93ap.dts
 #
-# Steps:
-#   1. download the iPad2,1 IPSW (or point IPSW at a local file)
-#   2. unzip, locate DeviceTree.k93ap.*.im4p
-#   3. decrypt it (keys are public on The iPhone Wiki — Durango 8L1 (iPad2,1))
-#   4. convert ADT -> DTS with the upstream tooling
-#      (iBSSloader: `make dts` does ADT -> JSON -> DTS -> DTB;
-#       Cascadia: src/adt_to_dts.py)
-#
-# Output: build/adt-k93ap/ (raw ADT, JSON, base DTS)
+# Output: build/adt-k93ap/  (img3, decrypted ADT, base DTS, diff)
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UP="$ROOT/upstream"
 OUT="$ROOT/build/adt-k93ap"
+IPSW_DIR="$ROOT/ipsw"
+IPSW="$IPSW_DIR/iPad2,1_9.3.5_13G36_Restore.ipsw"
 
-# iPad2,1, iOS 9.3.5 (13G36). Override with IPSW=/path/to.ipsw or IPSW_URL=...
-IPSW_URL="${IPSW_URL:-https://ipsw.me/iPad2,1}"   # TODO: pin exact Apple CDN URL for 9.3.5
-IPSW="${IPSW:-$ROOT/ipsw/iPad2,1_9.3.5_13G36_Restore.ipsw}"
+# Direct Apple CDN (verified 200 OK, 1418211002 bytes).
+IPSW_URL="${IPSW_URL:-https://appldnld.apple.com/iOS9.3.5/031-73136-20160825-6A2B0F0A-6711-11E6-BE6C-193834D2D062/iPad2,1_9.3.5_13G36_Restore.ipsw}"
 
-mkdir -p "$OUT" "$ROOT/ipsw"
+# iOS 9.3.5 (13G36) iPad2,1 firmware keys.
+# Source: The Apple Wiki — "Keys:Genoa 13G36 (iPad2,1)"
+DT_IV="bc102fb5946554dc8925d95d4ad466aa"
+DT_KEY="62ccfd18deb644e2c46d764d4222af160eb7bb40022ca573830479927a59391e"
+
+mkdir -p "$OUT" "$IPSW_DIR"
 
 if [ ! -f "$IPSW" ]; then
-    echo "== downloading IPSW =="
-    echo "TODO: resolve the direct Apple CDN URL for iPad2,1 9.3.5 13G36 from $IPSW_URL"
-    echo "      then: curl -L -o \"$IPSW\" <url>"
-    exit 2
+    echo "== downloading IPSW (1.36 GB) =="
+    curl -L --retry 3 -o "$IPSW" "$IPSW_URL"
 fi
 
-echo "== extracting DeviceTree from $IPSW =="
-TMP="$(mktemp -d)"
-(cd "$TMP" && unzip -q -o "$IPSW" '*/DeviceTree.k93ap*' 'DeviceTree.k93ap*' 2>/dev/null || \
-    unzip -q -l "$IPSW" | grep -i devicetree)
-DT_IM4P="$(find "$TMP" -iname 'DeviceTree.k93ap*.im4p' | head -1)"
-if [ -z "$DT_IM4P" ]; then
-    echo "DeviceTree.k93ap im4p not found in IPSW" >&2
+echo "== extracting files from IPSW =="
+# Member paths inside the IPSW zip (iOS 9 layout: Firmware/all_flash/... and Firmware/dfu/...)
+declare -A MEMBERS=(
+    ["DeviceTree.k93ap.img3"]="Firmware/all_flash/all_flash.k93ap.production/DeviceTree.k93ap.img3"
+    ["iBoot.k93.RELEASE.img3"]="Firmware/all_flash/all_flash.k93ap.production/iBoot.k93.RELEASE.img3"
+    ["iBEC.k93.RELEASE.dfu"]="Firmware/dfu/iBEC.k93.RELEASE.dfu"
+    ["iBSS.k93.RELEASE.dfu"]="Firmware/dfu/iBSS.k93.RELEASE.dfu"
+    ["kernelcache.release.k93"]="kernelcache.release.k93"
+)
+for out in "${!MEMBERS[@]}"; do
+    unzip -p -j "$IPSW" "${MEMBERS[$out]}" > "$OUT/$out"
+    echo "  extracted $out ($(stat -c%s "$OUT/$out") bytes)"
+done
+
+echo "== decrypting DeviceTree =="
+python3 "$ROOT/scripts/img3decrypt-ssl.py" \
+    "$OUT/DeviceTree.k93ap.img3" "$OUT/DeviceTree.k93ap.decrypted" "$DT_IV" "$DT_KEY"
+
+echo "== ADT -> DTS =="
+BASE_DTS="$OUT/ipad2-k93ap-base.dts"
+if [ -f "$UP/Project-Cascadia/src/adt_to_dts.py" ]; then
+    (cd "$UP/Project-Cascadia/src" && python3 adt_to_dts.py \
+        "$OUT/DeviceTree.k93ap.decrypted" --full -o "$BASE_DTS")
+else
+    echo "Project-Cascadia not cloned — run scripts/fetch-upstreams.sh" >&2
     exit 1
 fi
-cp "$DT_IM4P" "$OUT/"
 
-echo "== decrypting (TODO: wire in the exact decrypt step) =="
-echo "keys for DeviceTree.k93ap.* are on The iPhone Wiki:"
-echo "  https://www.theiphonewiki.com/wiki/Durango_8L1_(iPad2,1)"
-echo "upstream decrypt/patch flow: iBSSloader scripts/build-ibec.sh (needs IPSW),"
-echo "Cascadia ./cascadia firmware (regenerates the chain from a stock IPSW)."
-
-echo "== converting ADT -> DTS =="
-if [ -f "$UP/iBSSloader/Makefile" ]; then
-    echo "hint: (cd $UP/iBSSloader && make dts)   # ADT -> JSON -> DTS -> DTB"
-fi
-if [ -f "$UP/Project-Cascadia/src/adt_to_dts.py" ]; then
-    echo "hint: python3 $UP/Project-Cascadia/src/adt_to_dts.py <adt.bin> > $OUT/ipad2-k93ap-base.dts"
-fi
-
+echo "== diff vs dts/ipad2-k93ap.dts =="
+diff -u "$ROOT/dts/ipad2-k93ap.dts" "$BASE_DTS" > "$OUT/diff-vs-port.dts" || true
+wc -l "$OUT/diff-vs-port.dts"
+echo "review: $OUT/diff-vs-port.dts"
 echo
-echo "done (partial). artifacts in $OUT"
+echo "done. artifacts in $OUT"
+ls -la "$OUT"

@@ -5,8 +5,8 @@ No Pi Pico, no Arduino (those are only needed to pwn the BootROM from a
 *non*-jailbroken device — see [a5-software-only-bypass.md](a5-software-only-bypass.md)).
 
 ```
-jailbroken iOS 9.3.5 (EverPwnage, untethered)
-  -> kDFU            (on-device, via Legacy iOS Kit's restore.sh --kdfu)
+jailbroken iOS 9.3.5 (OpenSSH installed, unlocked, USB)
+  -> kDFU            (host-driven: boot/enter-kdfu.sh over ssh runs kloader)
   -> pwned iBSS      (booted by kloader from the jailbroken iOS)
   -> autogo iBEC     (uploaded by the host; PLAINTEXT image)
   -> stage1 loader   (in the staging bundle; autogo hook fires on upload EOF)
@@ -40,45 +40,69 @@ Artifacts you end up with:
 
 ## 2. One-time host setup
 
-Legacy iOS Kit provides `irecovery` (and the kDFU entry). Clone it and run it
-once so it fetches its own tools:
-
 ```sh
-git clone --depth 1 https://github.com/LukeZGD/Legacy-iOS-Kit ~/Legacy-iOS-Kit
-cd ~/Legacy-iOS-Kit && ./restore.sh        # first run fetches tools; run again to reach the menu
+bash scripts/fetch-tools-k93.sh
 ```
 
-The boot script finds `irecovery` on `PATH` or at `~/Legacy-iOS-Kit/bin/irecovery`.
-Raw USB access needs root: the script uses `sudo` (set `SUDO=` to skip it if you
-have udev rules for `05ac:12a8`).
+This installs the two host tools the boot needs (no sudo, no LIK checkout):
+
+| file | what it is |
+|---|---|
+| `build/tools/irecovery/irecovery` | LukeZGD's irecovery 2.0.6 — talks to the iPad in DFU (`05ac:1227`) and Recovery (`05ac:1281`) |
+| `build/tools/kloader` | ramytuki's kloader — runs **on the iPad**, loads the pwned iBSS |
+
+The boot script finds `irecovery` on `PATH`, at `~/Legacy-iOS-Kit/bin/irecovery`,
+or fetches it via the script above. Raw USB access works without root on a
+standard desktop udev setup; if it is denied, the script prints the
+libirecovery udev rule to install once (or set `SUDO=sudo`).
+
+A Legacy-iOS-Kit checkout (`~/Legacy-iOS-Kit`) is only needed for the
+`--kdfu-lik` fallback (`./boot/boot-linux.sh --kdfu-lik`).
 
 ## 3. Boot
 
-1. iPad 2: on, jailbroken (EverPwnage boots it untethered), connected to the
-   host by USB. Unlock it (passcode) if it asks.
-2. Run:
+What you do on the iPad (the only manual part — the rest is host-driven):
 
-   ```sh
-   ./boot/boot-linux.sh
-   ```
+1. **Jailbreak it.** Run your semitethered script on the iPad, or open
+   EverPwnage (untethered on 9.3.5 — it survives reboots). The iPad must be
+   jailbroken *right now*: after a reboot a semitethered jailbreak is gone
+   until you re-run it.
+2. **OpenSSH.** If OpenSSH is not installed yet, install it from Cydia. This
+   is the usual reason Legacy-iOS-Kit "does not work" for A5 devices: its
+   kDFU needs ssh.
+3. **Unlock** the iPad (passcode) and leave it plugged into the host USB.
+4. Root password: default `alpine` (override with `IPAD_ROOT_PW=...`).
 
-3. The script runs `~/Legacy-iOS-Kit/restore.sh --kdfu` and follows its
-   prompts. The iPad **reboots into DFU**: the screen goes black and the device
-   shows up as `Apple Mobile Device (DFU Mode)` (`05ac:12a8`). This is the only
-   step that needs you at the device.
-4. The script then uploads, in order:
-   - `iBEC.k93.autogo.plain.dfu` — the pwned iBSS accepts it (signature patch);
-     the iBEC comes up in Recovery mode;
-   - `staging-bundle.bin` — the autogo hook fires when this upload's final USB
-     transfer completes short (the bundle is deliberately not a multiple of
-     `0x8000`), and the iBEC jumps to the stage1 loader at `0x80000000`.
-5. The loader paints a status screen (framebuffer — may be invisible until the
-   k93 FB base is confirmed; see below) and jumps to the kernel at `0x80008000`.
+Then on the host:
+
+```sh
+./boot/boot-linux.sh
+```
+
+The script runs [boot/enter-kdfu.sh](../boot/enter-kdfu.sh): ssh over USB,
+push kloader + the pwned iBSS, run kloader on the iPad. The iPad **reboots
+into DFU**: the screen goes black and the device shows up as `Apple Mobile
+Device (DFU Mode)` (`05ac:1227`). If kloader does not take, the script says so
+and waits — replug the cable or press home/power on the iPad while it polls.
+
+The script then uploads, in order:
+
+- `iBEC.k93.autogo.plain.dfu` — the pwned iBSS accepts it (signature patch);
+  the iBEC comes up in Recovery mode;
+- `staging-bundle.bin` — the autogo hook fires when this upload's final USB
+  transfer completes short (the bundle is deliberately not a multiple of
+  `0x8000`), and the iBEC jumps to the stage1 loader at `0x80000000`.
+
+The loader paints a status screen (framebuffer — may be invisible until the
+k93 FB base is confirmed; see below) and jumps to the kernel at `0x80008000`.
 
 Useful variants:
 
 ```sh
+./boot/boot-linux.sh                         # full run (kDFU over ssh + upload)
 ./boot/boot-linux.sh --skip-pwn              # device already in kDFU
+./boot/boot-linux.sh --kdfu-lik              # enter kDFU via LIK's restore.sh instead
+./boot/enter-kdfu.sh                         # just enter kDFU, nothing else
 ./boot/boot-linux.sh --no-uart               # no serial capture
 UART_DEV=/dev/ttyUSB0 ./boot/boot-linux.sh   # capture the dock UART boot log
 ```
@@ -116,10 +140,11 @@ once a rootfs exists the shell is reachable over USB alone:
 
 | symptom | cause |
 |---|---|
-| `restore.sh` says "run the script again" and exits | first run on Linux installs LIK's own dependencies; run it once standalone, then re-run `boot-linux.sh` |
-| device never shows `MODE: DFU` | kloader never ran — iPad not jailbroken/unlocked, or not connected; check LIK's own output |
+| ssh: connection reset/closed | no sshd on the iPad — the jailbreak is not active (a semitethered jailbreak dies on every reboot; re-run your script/EverPwnage) or OpenSSH is not installed. Install OpenSSH from Cydia, re-jailbreak, retry |
+| device never shows as DFU (`05ac:1227`) | kloader never ran — iPad not jailbroken/unlocked, wrong root password, or not connected; `boot/enter-kdfu.sh` prints the ssh/scp error |
+| `--kdfu-lik`: `restore.sh` says "run the script again" and exits | first run on Linux installs LIK's own dependencies; run it once standalone, then re-run `boot-linux.sh --kdfu-lik` |
 | iBEC uploads to 100%, then the device drops off the bus | an **encrypted** iBEC over kDFU (no GID key after iOS booted → KBAG decrypts to nothing). The script uploads `iBEC.k93.autogo.plain.dfu` by default; if you overrode `--ibec`, use the plain one |
-| no `MODE: Recovery` after the iBEC upload | the iBEC did not come up — check the UART log and the screen |
+| device does not come back as Recovery (`05ac:1281`) after the iBEC upload | the iBEC did not come up — check the UART log and the screen |
 | bundle uploads, nothing happens | autogo hook did not fire: the bundle must not be a multiple of `0x8000` (`build-staging-k93.sh` enforces this — check its output: `size % 0x8000 = 6110`) |
 | kernel starts, no console | no UART attached and the framebuffer node is disabled (build 1) — attach UART or wait for the FB task |
 | red/blue swapped on the panel (later, when FB is enabled) | pixel format: change `format` in the `framebuffer0` node from `a8r8g8b8` to `x8b8g8r8` |

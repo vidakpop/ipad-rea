@@ -60,6 +60,12 @@ or Legacy-iOS-Kit on Linux) with "Install Untether" enabled (default) and the
 jailbreak survives reboots. It also provides the jailbroken state that kDFU
 needs for the Linux boot chain.
 
+This is the **primary** path to a permanent, software-only (no extra hardware)
+jailbreak. Verified IPA staged at `build/jailbreak/EverPwnage-v2.0.2.ipa`
+(re-fetch/verify: `scripts/fetch-jailbreak-ipas.sh`). Full step-by-step, plus
+why the A5 DFU exploit can't run on a PC and a Phoenix fallback:
+[docs/k93-permanent-jailbreak.md](docs/k93-permanent-jailbreak.md).
+
 ## Status / roadmap
 
 - [x] Research: upstream identified (Project Cascadia, iBSSloader, Legacy-iOS-Kit)

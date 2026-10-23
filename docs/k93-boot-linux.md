@@ -63,15 +63,15 @@ A Legacy-iOS-Kit checkout (`~/Legacy-iOS-Kit`) is only needed for the
 
 What you do on the iPad (the only manual part — the rest is host-driven):
 
-1. **Jailbreak it.** Run your semitethered script on the iPad, or open
-   EverPwnage (untethered on 9.3.5 — it survives reboots). The iPad must be
-   jailbroken *right now*: after a reboot a semitethered jailbreak is gone
-   until you re-run it.
-2. **OpenSSH.** If OpenSSH is not installed yet, install it from Cydia. This
-   is the usual reason Legacy-iOS-Kit "does not work" for A5 devices: its
-   kDFU needs ssh.
-3. **Unlock** the iPad (passcode) and leave it plugged into the host USB.
-4. Root password: default `alpine` (override with `IPAD_ROOT_PW=...`).
+1. **Jailbreak it.** Run your semitethered script on the iPad. The iPad must
+   be jailbroken *right now*: after a reboot a semitethered jailbreak is gone
+   until you re-run it. **Do not reboot afterwards.**
+2. **Unlock** the iPad (passcode 3931) and leave it plugged into the host USB.
+3. Tell the host it is done. **No Cydia and no OpenSSH are required** — see
+   [k93-no-cydia-toolbox.md](k93-no-cydia-toolbox.md) for the host-driven
+   channels used when neither exists: `streaming_zip_conduit` to drop files
+   into `/var/mobile/Media`, `com.apple.debugserver` to run kloader as root
+   once it is +x, and a jailbreak probe that reads the device's state.
 
 Then on the host:
 
@@ -84,6 +84,14 @@ push kloader + the pwned iBSS, run kloader on the iPad. The iPad **reboots
 into DFU**: the screen goes black and the device shows up as `Apple Mobile
 Device (DFU Mode)` (`05ac:1227`). If kloader does not take, the script says so
 and waits — replug the cable or press home/power on the iPad while it polls.
+
+If there is no OpenSSH (no Cydia), enter kDFU with the debugserver path
+documented in [k93-no-cydia-toolbox.md](k93-no-cydia-toolbox.md) §7 instead,
+then continue with:
+
+```sh
+./boot/boot-linux.sh --skip-pwn
+```
 
 The script then uploads, in order:
 

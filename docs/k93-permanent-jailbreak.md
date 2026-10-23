@@ -98,21 +98,43 @@ The IPA is already fetched and verified in this repo at
 `build/jailbreak/EverPwnage-v2.0.2.ipa` (re-fetch/verify any time with
 `scripts/fetch-jailbreak-ipas.sh`).
 
-Pick **one** sideload tool:
+### Option A — one command (recommended): `scripts/sideload-everpwnage.sh`
 
-### Option A — Sideloadly (recommended, actively maintained, Linux GUI/CLI)
+This signs + installs EverPwnage using `plumesign`, the CLI signer that
+Legacy-iOS-Kit uses under the hood. Your Apple ID credentials are read from the
+environment — **never paste them into chat**. Set them in your own terminal:
+
+```bash
+APPLE_ID=you@icloud.com \
+APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx \
+  ./scripts/sideload-everpwnage.sh
+```
+
+`APPLE_APP_PASSWORD` must be an **app-specific password** from
+https://appleid.apple.com (Sign-In & Security → App-Specific Passwords) — **not**
+your main Apple ID password. If your Apple ID has two-factor auth, the main
+password will NOT work here (this is the #1 reason sideloading fails with
+Legacy iOS Kit). A free Apple ID works; the 7-day cert is fine because the
+jailbreak is untethered and persists after the app expires.
+
+The script: logs in → registers the iPad → signs the IPA → installs it, then
+prints the installed-app list. Needs the iPad plugged in, unlocked, and trusted.
+
+Or use a GUI tool instead:
+
+### Option B — Sideloadly (GUI)
 1. Download Sideloadly for Linux from https://sideloadly.io/ and open it.
 2. Drag `build/jailbreak/EverPwnage-v2.0.2.ipa` into Sideloadly (or Device →
    Install IPA / `sideloadly install`).
 3. Enter your **Apple ID email** and **app-specific password**.
 4. Wait for "Done". The **EverPwnage** app appears on the iPad home screen.
 
-### Option B — Cydia Impactor (Linux)
+### Option C — Cydia Impactor (GUI)
 1. Download Cydia Impactor for Linux from https://cydiaimpactor.com/ .
 2. Device → Install Package → select `EverPwnage-v2.0.2.ipa`.
 3. Enter Apple ID + **app-specific password** (not your main password).
 
-### Option C — Legacy iOS Kit (Linux, one tool does everything)
+### Option D — Legacy iOS Kit (interactive, one tool does everything)
 The "Sideload IPA" option on the main menu sideloads with your Apple ID. You
 said this didn't work for you before — if the sideload step is what failed,
 the usual cause is entering the **main** Apple ID password instead of an

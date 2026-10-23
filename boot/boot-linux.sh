@@ -2,16 +2,17 @@
 #
 # boot-linux.sh — boot Linux on the iPad 2 over USB (kDFU route, no hardware).
 #
-#   ./boot/boot-linux.sh              # enter kDFU via Legacy iOS Kit, then upload
+#   ./boot/boot-linux.sh              # enter kDFU over ssh, then upload the chain
 #   ./boot/boot-linux.sh --skip-pwn   # the device is already in kDFU (DFU on the bus)
+#   ./boot/boot-linux.sh --kdfu-lik   # enter kDFU with Legacy iOS Kit's interactive restore.sh
 #   ./boot/boot-linux.sh --no-uart    # skip the serial capture
 #   UART_DEV=/dev/ttyUSB0 ./boot/boot-linux.sh   # capture the dock UART log too
 #
 # Chain (docs/k93-boot-linux.md has the full procedure):
 #
-#   jailbroken iOS 9.3.5 (EverPwnage, untethered)
-#     -> Legacy iOS Kit `restore.sh --kdfu` boots a pwned iBSS via kloader
-#        (on-device step; the device reboots into DFU, screen goes black)
+#   jailbroken iOS 9.3.5 (OpenSSH installed, unlocked, USB)
+#     -> boot/enter-kdfu.sh: ssh + kloader boots the pwned iBSS
+#        (the device reboots into DFU, screen goes black, 05ac:1227)
 #     -> irecovery -f iBEC.k93.autogo.plain.dfu   (PLAINTEXT: over kDFU the AES
 #                                                   GID key is gone, a KBAG
 #                                                   image decrypts to nothing)
@@ -20,13 +21,13 @@
 #                                                 runs the loader -> Linux)
 #
 # Prereqs on the host:
-#   - Legacy iOS Kit cloned — it provides irecovery in its bin/ after its first
-#     run (see docs/k93-boot-linux.md):
-#       git clone --depth 1 https://github.com/LukeZGD/Legacy-iOS-Kit ~/Legacy-iOS-Kit
 #   - artifacts built (inside the cascadia-build container):
 #       docker run --rm -v "$PWD":/work -w /work cascadia-build bash scripts/build-chain-k93.sh
 #       docker run --rm -v "$PWD":/work -w /work cascadia-build bash scripts/build-kernel-k93.sh
 #       docker run --rm -v "$PWD":/work -w /work cascadia-build bash scripts/build-staging-k93.sh
+#   - host tools (irecovery + kloader): fetched automatically by
+#     scripts/fetch-tools-k93.sh on first run.  No Legacy-iOS-Kit checkout is
+#     needed for the default path (only for --kdfu-lik).
 #
 set -euo pipefail
 
@@ -42,11 +43,13 @@ LOADER="$OUT/linux-boot.bin"
 PWN_MODE=kdfu
 WANT_UART=1
 UART_DEV="${UART_DEV:-}"
-SUDO="${SUDO:-sudo}"
+SUDO="${SUDO:-}"   # empty by default: libusb reaches the iPad without root on
+                   # this host.  Set SUDO=sudo if your udev rules require it.
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --kdfu)     PWN_MODE=kdfu; shift ;;
+        --kdfu-lik) PWN_MODE=kdfu-lik; shift ;;
         --skip-pwn) PWN_MODE=none; shift ;;
         --no-uart)  WANT_UART=0; shift ;;
         --ibec)     IBEC="$2"; shift 2 ;;
@@ -55,6 +58,32 @@ while [ $# -gt 0 ]; do
 done
 
 fail() { echo "error: $*" >&2; exit 1; }
+as_root() { if [ -n "$SUDO" ]; then "$SUDO" "$@"; else "$@"; fi; }
+
+# device mode from the USB bus (same detection as Legacy iOS Kit on Linux:
+# product id 1227 = DFU/kDFU, 1281 = Recovery, 12xx = normal)
+dev_mode() {
+    local pid
+    pid="$(lsusb 2>/dev/null | awk '/05ac:/ {print $6}' | cut -d: -f2 | head -1)"
+    case "$pid" in
+        1227) echo dfu ;;
+        1281) echo recovery ;;
+        12*)  echo normal ;;
+        *)    echo none ;;
+    esac
+}
+
+udev_hint() {
+    cat >&2 <<'EOF'
+Raw USB access to the iPad was denied.  Install the libirecovery udev rule once:
+
+    echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="05ac", MODE:="0666", TAG+="uaccess"' \
+        | sudo tee /lib/udev/rules.d/39-libirecovery.rules
+    sudo udevadm control --reload-rules && sudo udevadm trigger
+
+then re-run this script (or set SUDO=sudo to run the tools as root).
+EOF
+}
 
 echo "== ipad-rea boot-linux.sh (k93ap, kDFU route) =="
 
@@ -64,14 +93,20 @@ for f in "$IBEC" "$BUNDLE" "$LOADER"; do
       bash scripts/build-chain-k93.sh && bash scripts/build-staging-k93.sh"
 done
 
+# ---------------------------------------------------------------- irecovery --
 IRECOVERY="$(command -v irecovery 2>/dev/null || true)"
 if [ -z "$IRECOVERY" ] && [ -x "$LIK/bin/irecovery" ]; then
     IRECOVERY="$LIK/bin/irecovery"
 fi
-[ -n "$IRECOVERY" ] || fail "no irecovery: not on PATH and not at $LIK/bin/irecovery
-Legacy iOS Kit provides it after its first run:
-    git clone --depth 1 https://github.com/LukeZGD/Legacy-iOS-Kit $LIK
-    cd $LIK && ./restore.sh        # run once to fetch its tools, then re-run this"
+if [ -z "$IRECOVERY" ] && [ ! -x "$ROOT/build/tools/irecovery/irecovery" ]; then
+    echo "==> no irecovery found — fetching host tools (scripts/fetch-tools-k93.sh)"
+    bash "$ROOT/scripts/fetch-tools-k93.sh"
+fi
+if [ -z "$IRECOVERY" ]; then
+    IRECOVERY="$ROOT/build/tools/irecovery/irecovery"
+fi
+[ -x "$IRECOVERY" ] || fail "no irecovery: not on PATH, not at $LIK/bin/irecovery,
+    and scripts/fetch-tools-k93.sh did not install one"
 
 # Optional UART capture (dock-connector serial, docs/uart-console.md).
 CAP=""
@@ -86,12 +121,19 @@ fi
 # ---------------------------------------------------------------- pwn -----
 case "$PWN_MODE" in
     kdfu)
+        echo "==> kDFU: $ROOT/boot/enter-kdfu.sh (ssh + kloader; no LIK checkout needed)"
+        echo "    The iPad must be on, jailbroken (your semitethered script or"
+        echo "    EverPwnage), OpenSSH installed, unlocked, and plugged into USB."
+        bash "$ROOT/boot/enter-kdfu.sh"
+        echo "==> device is in kDFU"
+        ;;
+    kdfu-lik)
         [ -x "$LIK/restore.sh" ] || fail "no $LIK/restore.sh — clone Legacy iOS Kit:
     git clone --depth 1 https://github.com/LukeZGD/Legacy-iOS-Kit $LIK"
         echo "==> kDFU: $LIK/restore.sh --kdfu (interactive — follow its prompts)"
         echo "    The iPad must be on, jailbroken (EverPwnage) and connected by USB."
         echo "    It reboots into DFU: the screen goes black and the device shows"
-        echo "    up as 'Apple Mobile Device (DFU Mode)' 05ac:12a8."
+        echo "    up as 'Apple Mobile Device (DFU Mode)' 05ac:1227."
         # restore.sh resolves its own resources relatively, so it has to run
         # from its own directory.  It is interactive by design — it will say
         # what to do with the device — so it is not piped or backgrounded.
@@ -103,7 +145,7 @@ case "$PWN_MODE" in
         echo "==> waiting for the device in DFU (kDFU)"
         indfu=0
         for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            if "$SUDO" "$IRECOVERY" -q 2>/dev/null | grep -q "MODE: DFU"; then indfu=1; break; fi
+            [ "$(dev_mode)" = dfu ] && { indfu=1; break; }
             sleep 1
         done
         if [ "$indfu" = 0 ]; then
@@ -121,9 +163,14 @@ run this script again:
         ;;
 esac
 
+# after the pwn step the device must be on the bus as DFU (05ac:1227)
+if [ "$(dev_mode)" != dfu ]; then
+    fail "device is not in DFU (mode: $(dev_mode)) — cannot upload the iBEC"
+fi
+
 # --------------------------------------------------------------- upload ----
 echo "==> iBEC:   $IBEC"
-"$SUDO" "$IRECOVERY" -f "$IBEC"
+as_root "$IRECOVERY" -f "$IBEC" || { udev_hint; fail "iBEC upload failed"; }
 sleep 1
 
 # An iBEC upload always "succeeds": it means the host finished sending, not
@@ -133,11 +180,11 @@ sleep 1
 echo "==> waiting for the iBEC to come up in Recovery"
 back=0
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-    if "$SUDO" "$IRECOVERY" -q 2>/dev/null | grep -q "MODE: Recovery"; then back=1; break; fi
+    [ "$(dev_mode)" = recovery ] && { back=1; break; }
     sleep 1
 done
 if [ "$back" = 0 ]; then
-    echo "    it did not.  The device is: $("$SUDO" "$IRECOVERY" -q 2>/dev/null | grep -w MODE || echo "not on the bus at all")" >&2
+    echo "    it did not.  The device is: $(dev_mode)" >&2
     case "$IBEC" in
         *.plain.dfu)
             echo "    The image was already the unencrypted one, so it is not the KBAG." >&2
@@ -151,13 +198,13 @@ if [ "$back" = 0 ]; then
 fi
 
 echo "==> bundle: $BUNDLE"
-"$SUDO" "$IRECOVERY" -f "$BUNDLE"
+as_root "$IRECOVERY" -f "$BUNDLE" || { udev_hint; fail "bundle upload failed"; }
 sleep 1
 # Fallback in case the autogo hook did not fire: the loader alone at
 # 0x80000000 (needs a manual `irecovery -c go` to run — the bundle path does
 # not).  Harmless if Linux already booted: the device is a USB gadget then,
 # not recovery, and this upload simply finds nothing to talk to.
-"$SUDO" "$IRECOVERY" -f "$LOADER" 2>/dev/null || true
+as_root "$IRECOVERY" -f "$LOADER" 2>/dev/null || true
 
 [ -n "$CAP" ] && { sleep 2; kill "$CAP" 2>/dev/null || true; }
 

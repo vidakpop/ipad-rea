@@ -14,18 +14,25 @@ the same unsigned-USB-upload state as checkm8 pwned DFU — without a Pi Pico.
     each reboot before entering kDFU.
 - USB cable + host computer (Linux or macOS; Windows via gaster/LIK tooling).
 
-## Steps
+## Steps (host-driven — no Cydia tweak needed)
 
-1. With the jailbreak active, install the **kDFU** tweak from Cydia
-   (TODO(ipad-rea): pin the exact package/repo — Legacy-iOS-Kit's kDFU support
-   and the 3uTools "enter kDFU" guide describe the tweak + kickstart flow;
-   historically: install tweak → reboot → re-jailbreak → trigger kDFU).
-2. Trigger kDFU. The iPad reboots and re-enumerates on USB as a DFU device in
-   the kDFU state.
-3. On the host, confirm the device is seen (e.g. `irecovery -q` / `lsusb` /
-   Legacy-iOS-Kit's device detection shows the kDFU/pwned state).
-4. Run the boot script ([boot-linux.sh](boot-linux.sh)) or
-   `./cascadia flash --kdfu` from the Cascadia tree.
+The Legacy-iOS-Kit kDFU flow needs only **OpenSSH** on the iPad, not a tweak:
+
+1. iPad: jailbroken (EverPwnage untethered, or your semitethered script re-run
+   after every reboot), **OpenSSH installed** (Cydia → OpenSSH), unlocked,
+   plugged into the host.
+2. Host: `./boot/enter-kdfu.sh` — ssh over USB (iproxy 6414→22), pushes
+   `kloader` + the pwned iBSS (`build/adt-k93ap/iBSS.k93.patched`), runs
+   kloader on the iPad. The iPad reboots into DFU with signature checks off:
+   screen black, `lsusb` shows `05ac:1227`.
+   - root password default `alpine` (`IPAD_ROOT_PW=...` to override)
+   - Wi-Fi instead of USB: `IPAD_ADDR=<ipad ip> ./boot/enter-kdfu.sh`
+   - if kloader does not take, replug the cable or press home/power while the
+     script waits (it polls 5 times)
+3. Host: `./boot/boot-linux.sh --skip-pwn` uploads the boot chain.
+
+(Alternative: a Cydia "kDFU" tweak can also trigger kDFU from on-device, but
+the host-driven flow above needs no tweak and no on-device app.)
 
 ## Notes
 

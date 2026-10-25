@@ -660,7 +660,7 @@ def main():
                         help='prebuilt A5 payload variant (default: classic)')
     parser.add_argument('--leak', type=int, default=A5_LEAK_COUNT,
                         help='heap feng shui leak count (default: %(default)s)')
-    parser.add_argument('--spin-us', type=int, default=120,
+    parser.add_argument('--spin-us', type=int, default=80,
                         help='cancel delay for abandoned IN transfers, microseconds (default: %(default)s)')
     parser.add_argument('--out-spin-us', type=int, default=0,
                         help='cancel delay for abandoned OUT transfers, microseconds (0 = estimate)')

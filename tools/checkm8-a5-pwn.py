@@ -430,7 +430,7 @@ def auto_out_spin(spin_us, data_len):
     sending the whole data stage; --out-spin-us overrides it.
     """
     packets = max(1, (data_len + 63) // 64)
-    return max(spin_us, 150 + packets * 200)
+    return max(spin_us, 120 + packets * 185)
 
 
 def heap_feng_shui_req(usb, handle, serial_idx, sz, spin_us, debug=False):
@@ -501,18 +501,23 @@ def stage2(usb, spin_us, out_spin_us, debug):
     if info and info[0] != 0:
         print('  warning: set-state OUT status=%s (continuing)' % status_name(info[0]))
     # (e) zero-length DNLOAD
-    usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, None, 10)
+    rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, None, 10)
+    if debug:
+        print('    [debug] zero DNLOAD       ctrl rc=%d' % rc)
     # (f) two DFU GETSTATUS requests
-    usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
-    usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
-    # (g) incomplete DNLOAD: SETUP(wLength=padding+0x40) + `padding` data, no
-    # status.  The Arduino sends padding+0x40 OUT packets, but its first OUT is
-    # a data-toggle dummy; a PC host sends DATA1 first, so the equivalent real
-    # data stage is `padding` bytes while wLength stays padding+0x40.  The
-    # device therefore never reaches end_of_transfer before the bus reset.
+    for i in range(2):
+        rc, raw = usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
+        if debug:
+            print('    [debug] GETSTATUS %d        ctrl_in rc=%d raw=%s' % (i + 1, rc, raw.hex()))
+    # (g) incomplete DNLOAD.  The Arduino sends padding+0x40 OUT packets, but
+    # its first OUT is a data-toggle dummy, so the device only receives
+    # `padding` bytes while its expected length stays padding+0x40.  A PC host
+    # sends DATA1 first and libusb refuses an OUT URB whose data stage is
+    # shorter than wLength, so submit the full wLength and cancel after the
+    # first `padding` bytes (the final 0x40 packet is never sent).
     w_length = A5_PADDING + 0x40
-    data = b'\0' * A5_PADDING
-    spin = out_spin_us or auto_out_spin(spin_us, len(data))
+    data = b'\0' * w_length
+    spin = out_spin_us or auto_out_spin(spin_us, A5_PADDING)
     rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
                             data, abandon=True, spin_us=spin, timeout_ms=1000,
                             name='incomplete DNLOAD')

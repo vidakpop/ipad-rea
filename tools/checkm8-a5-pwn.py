@@ -373,7 +373,7 @@ class LibUSB:
 LibUSB._current = None
 
 
-def acquire(usb, want_serial=False, timeout=5.0):
+def acquire(usb, want_serial=False, timeout=15.0):
     """Find, open, claim and (optionally) read the DFU serial number."""
     start = time.time()
     last_rc = None
@@ -396,7 +396,7 @@ def acquire(usb, want_serial=False, timeout=5.0):
                      'permission? install the udev rule from boot/boot-linux.sh' % last_rc)
 
 
-def reset_and_release(usb, handle, settle=0.5):
+def reset_and_release(usb, handle, settle=1.0):
     usb.reset(handle)
     usb.release(handle)
     if settle:

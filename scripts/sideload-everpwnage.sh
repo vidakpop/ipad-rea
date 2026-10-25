@@ -1,56 +1,60 @@
 #!/usr/bin/env bash
 # Sideload the EverPwnage UNTETHERED jailbreak onto the iPad 2 (iOS 9.3.5)
-# using plumesign (CLI signer, same engine Legacy-iOS-Kit uses).
+# WITHOUT Legacy iOS Kit, using only local tools:
 #
-#   1. log in to your Apple ID          (plumesign account login)
-#   2. register the iPad with Apple     (plumesign account register-device)
-#   3. sign EverPwnage-v2.0.2.ipa        (plumesign sign)
-#   4. install the signed IPA           (ideviceinstaller)
+#   1. local anisette server (tools/anisette-server.py, Anisette.py engine)
+#      -> avoids Apple's flagged/rejected public remote anisette servers
+#   2. AltServer-NG (jaakkopalvaila's AltServer-Linux fork with the
+#      October-2026 sign-in fixes: Windows-iTunes client identity, fresh
+#      GSA connections, 2FA prompt support)
+#   3. it signs EverPwnage-v2.0.2.ipa with your (free) Apple ID, registers
+#      the iPad, and installs the signed IPA over USB
 #
-# CREDENTIALS ARE READ FROM THE ENVIRONMENT. Do NOT paste them into chat.
-# Set them in your own terminal, then run this script:
+# CREDENTIALS ARE NEVER ECHOED OR WRITTEN TO DISK BY THIS SCRIPT.
+# They come from the environment, or from a local .env file (gitignored):
 #
-#   APPLE_ID=you@icloud.com \
+#   APPLE_ID=you@example.com \
 #   APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx \
 #     ./scripts/sideload-everpwnage.sh
 #
-# APPLE_APP_PASSWORD must be an APP-SPECIFIC password, generated at
-# https://appleid.apple.com (Sign-In & Security -> App-Specific Passwords).
-# If your Apple ID has two-factor auth, your MAIN password will NOT work here —
-# you must use an app-specific password. (This is the #1 reason sideloading
-# "doesn't work" with Legacy iOS Kit.)
+# APPLE_APP_PASSWORD must be an APP-SPECIFIC password generated at
+# https://appleid.apple.com (Sign-In & Security -> App-Specific Passwords),
+# minted while signed in as the SAME Apple ID you pass here. If your account
+# has two-factor auth, your MAIN password will not work — Apple will push a
+# 2FA code to your trusted devices and the tool will ask for it; that path
+# also works (type the code when prompted).
 #
-# The script never echoes or writes the password; it is only passed to
-# plumesign, which sends it to Apple. A free Apple ID works (7-day cert; the
-# jailbreak is untethered so it persists after the app expires).
+# NOTE (Oct 2026): Apple broke sign-in for ALL free sideload tools on
+# 2026-10-12/13 (-80045 / HTTP 503). Using anything older than AltServer-NG
+# plus a LOCAL anisette server will fail. See docs/k93-permanent-jailbreak.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UDID="${UDID:-ae85db46b1dd7faa563fc6eb53780515a67dfcc7}"
 IPA="$ROOT/build/jailbreak/EverPwnage-v2.0.2.ipa"
-SIGNED="$ROOT/build/jailbreak/EverPwnage-signed.ipa"
-PLUMESIGN="$ROOT/build/tools/plumesign"
-PLUMESIGN_URL="https://github.com/claration/impactor/releases/download/v2.7.1/plumesign-linux-x86_64"
+ALT="$ROOT/build/tools/AltServer-NG"
+ALT_URL="https://github.com/jaakkopalvaila/AltServer-Linux/releases/download/ng-2026-10-20/AltServer-x86_64"
+ANI_PORT="${ANI_PORT:-6969}"
+VENV_PY="$ROOT/build/venv/bin/python"
 
-# --- credentials from env (never echoed, never written to disk) ---
+# --- credentials: env first, then local .env (gitignored, never printed) ---
 if [[ -z "${APPLE_ID:-}" || -z "${APPLE_APP_PASSWORD:-}" ]]; then
-  echo "[FAIL] APPLE_ID and APPLE_APP_PASSWORD must be set as environment variables." >&2
-  echo "       Do NOT paste them in chat. Set them in your terminal, e.g.:" >&2
-  echo "         APPLE_ID=you@icloud.com APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx \\" >&2
-  echo "           ./scripts/sideload-everpwnage.sh" >&2
-  echo "       Use an APP-SPECIFIC password from appleid.apple.com (not your main password)." >&2
+  if [[ -f "$ROOT/.env" ]]; then
+    set -a; source "$ROOT/.env"; set +a
+  fi
+fi
+if [[ -z "${APPLE_ID:-}" || -z "${APPLE_APP_PASSWORD:-}" ]]; then
+  echo "[FAIL] APPLE_ID and APPLE_APP_PASSWORD are not set." >&2
+  echo "       Either export them, or put them in $ROOT/.env (gitignored):" >&2
+  echo "         APPLE_ID=you@example.com" >&2
+  echo "         APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx   # app-specific password" >&2
+  echo "       Do NOT paste them in chat." >&2
   exit 2
 fi
+# never let the password leak into logs: scrub it from all further output
+scrub() { sed "s|${APPLE_APP_PASSWORD}|<REDACTED-PW>|g"; }
 
 [[ -f "$IPA" ]] || { echo "[FAIL] Missing $IPA — run: ./scripts/fetch-jailbreak-ipas.sh" >&2; exit 1; }
-
-# --- fetch plumesign if needed ---
-mkdir -p "$ROOT/build/tools"
-if [[ ! -x "$PLUMESIGN" ]]; then
-  echo "[..] downloading plumesign (CLI signer)"
-  curl -fL --retry 3 -o "$PLUMESIGN" "$PLUMESIGN_URL"
-  chmod +x "$PLUMESIGN"
-fi
 
 # --- sanity: iPad connected + trusted ---
 if ! ideviceinfo -u "$UDID" -k UniqueDeviceID >/dev/null 2>&1; then
@@ -58,29 +62,68 @@ if ! ideviceinfo -u "$UDID" -k UniqueDeviceID >/dev/null 2>&1; then
   echo "       Plug it in, unlock it, and tap 'Trust' on the iPad if prompted." >&2
   exit 1
 fi
-echo "[ok] iPad detected: $(ideviceinfo -u "$UDID" -k DeviceName | tr -d '\n') ($(ideviceinfo -u "$UDID" -k ProductVersion | tr -d '\n'))"
+echo "[ok] iPad detected: $(ideviceinfo -u "$UDID" -k ProductVersion | tr -d '\n') (UDID $UDID)"
 
-echo "[..] logging in to Apple as $APPLE_ID (app-specific password)"
-"$PLUMESIGN" account login -u "$APPLE_ID" -p "$APPLE_APP_PASSWORD" 2>&1 | grep -vE 'DEBUG|INFO ' || true
-# make sure the account we just logged in is the one used for signing
-"$PLUMESIGN" account switch "$APPLE_ID" 2>&1 | grep -vE 'DEBUG|INFO ' || true
+# --- ensure the python venv with Anisette.py ---
+if [[ ! -x "$VENV_PY" ]]; then
+  echo "[..] creating build/venv"
+  python3 -m venv "$ROOT/build/venv"
+fi
+if ! "$VENV_PY" -c "import anisette" >/dev/null 2>&1; then
+  echo "[..] installing Anisette.py (local anisette engine) into build/venv"
+  "$VENV_PY" -m pip install -q "Anisette[cli]"
+fi
 
-echo "[..] registering iPad ($UDID) with your Apple ID"
-"$PLUMESIGN" account register-device --udid "$UDID" --name "iPad 2" 2>&1 | grep -vE 'DEBUG|INFO ' || true
+# --- ensure an anisette session exists (downloads Apple Music APK libs once) ---
+ANI_DIR="$ROOT/build/anisette-config/anisette-py"
+if [[ ! -f "$ANI_DIR/libs.bin" || ! -f "$ANI_DIR/default.prov" ]]; then
+  echo "[..] creating anisette session (one-time download of Apple libs, ~2MB)"
+  XDG_CONFIG_HOME="$ROOT/build/anisette-config" "$ROOT/build/venv/bin/anisette" new default
+fi
 
-echo "[..] signing EverPwnage IPA (talks to Apple; can take ~30-60s)"
-rm -f "$SIGNED"
-"$PLUMESIGN" sign -p "$IPA" --apple-id --udid "$UDID" -o "$SIGNED" 2>&1 | grep -vE 'DEBUG|INFO ' || true
-[[ -f "$SIGNED" ]] || { echo "[FAIL] signing produced no output IPA." >&2; exit 1; }
-echo "[ok] signed IPA: $SIGNED ($(stat -c%s "$SIGNED") bytes)"
+# --- ensure the local anisette server is running ---
+if ! curl -sf -o /dev/null "http://127.0.0.1:${ANI_PORT}/"; then
+  echo "[..] starting local anisette server on 127.0.0.1:${ANI_PORT}"
+  nohup "$VENV_PY" "$ROOT/tools/anisette-server.py" --port "$ANI_PORT" \
+    > "$ROOT/build/anisette-server.log" 2>&1 &
+  for _ in $(seq 1 30); do
+    curl -sf -o /dev/null "http://127.0.0.1:${ANI_PORT}/" && break
+    sleep 1
+  done
+fi
+if ! curl -sf -o /dev/null "http://127.0.0.1:${ANI_PORT}/"; then
+  echo "[FAIL] local anisette server did not come up; see build/anisette-server.log" >&2
+  exit 1
+fi
+echo "[ok] local anisette server: http://127.0.0.1:${ANI_PORT}/"
 
-echo "[..] installing signed IPA onto the iPad"
-ideviceinstaller -u "$UDID" install "$SIGNED"
+# --- fetch AltServer-NG if needed ---
+mkdir -p "$ROOT/build/tools"
+if [[ ! -x "$ALT" ]]; then
+  echo "[..] downloading AltServer-NG (October-2026 sign-in fixes)"
+  curl -fL --retry 3 -o "$ALT" "$ALT_URL"
+  chmod +x "$ALT"
+fi
+
+# --- sign + install (talks to Apple; can take ~30-60s) ---
+echo "[..] signing + installing EverPwnage as $APPLE_ID (app-specific password)"
+echo "     if Apple pushes a 2FA code to your devices, type it when asked"
+timeout 280 env ALTSERVER_ANISETTE_SERVER="http://127.0.0.1:${ANI_PORT}" \
+  "$ALT" -u "$UDID" -a "$APPLE_ID" -p "$APPLE_APP_PASSWORD" "$IPA" 2>&1 | scrub | tail -25 || true
 
 echo
-echo "[ok] Installed apps now on the iPad:"
-ideviceinstaller -u "$UDID" -l 2>/dev/null | grep -iE 'everpwnage|phoenix|CFBundleIdentifier' || true
-echo
-echo "[done] On the iPad: open the EverPwnage app, keep 'Install Untether' ON,"
-echo "       tap Jailbreak. It will respring/reboot and stay jailbroken."
-echo "       Then tell me — I'll verify and boot Linux."
+echo "[..] installed apps on the iPad:"
+if ideviceinstaller -u "$UDID" -l 2>/dev/null | grep -qi everpwnage; then
+  ideviceinstaller -u "$UDID" -l 2>/dev/null | grep -iE 'everpwnage|CFBundleIdentifier'
+  echo
+  echo "[done] On the iPad: open the EverPwnage app, keep 'Install Untether' ON,"
+  echo "       tap Jailbreak. It resprings/reboots and STAYS jailbroken (untethered)."
+  echo "       Then tell me — I'll verify the jailbreak and boot Linux."
+else
+  echo "       (EverPwnage not listed — install failed; see output above)"
+  echo "[FAIL] sideload did not complete. Common causes:"
+  echo "       - wrong/typo'd app-specific password (Apple: -22406) — regenerate it"
+  echo "         at appleid.apple.com WHILE SIGNED IN AS $APPLE_ID, copy it exactly"
+  echo "       - Apple sign-in throttling after repeated attempts — wait ~1h"
+  exit 1
+fi

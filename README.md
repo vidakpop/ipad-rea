@@ -55,10 +55,11 @@ Details: [docs/a5-software-only-bypass.md](docs/a5-software-only-bypass.md)
 
 [EverPwnage](https://github.com/LukeZGD/EverPwnage) is an **untethered**
 jailbreak for 32-bit devices on iOS 7.0–9.3.6 — including the iPad 2 on
-9.3.5/9.3.6 (iocaste untether). Sideload its IPA (Sideloadly / PlumeImpactor,
-or Legacy-iOS-Kit on Linux) with "Install Untether" enabled (default) and the
-jailbreak survives reboots. It also provides the jailbroken state that kDFU
-needs for the Linux boot chain.
+9.3.5/9.3.6 (iocaste untether). Sideload its IPA with **one command**
+(`scripts/sideload-everpwnage.sh` — local anisette + AltServer-NG, no GUI tools
+needed) with "Install Untether" enabled (default) and the jailbreak survives
+reboots. It also provides the jailbroken state that kDFU needs for the Linux
+boot chain.
 
 This is the **primary** path to a permanent, software-only (no extra hardware)
 jailbreak. Verified IPA staged at `build/jailbreak/EverPwnage-v2.0.2.ipa`

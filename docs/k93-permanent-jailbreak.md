@@ -100,25 +100,63 @@ The IPA is already fetched and verified in this repo at
 
 ### Option A — one command (recommended): `scripts/sideload-everpwnage.sh`
 
-This signs + installs EverPwnage using `plumesign`, the CLI signer that
-Legacy-iOS-Kit uses under the hood. Your Apple ID credentials are read from the
-environment — **never paste them into chat**. Set them in your own terminal:
+This signs + installs EverPwnage fully locally. Your Apple ID credentials are
+read from the environment or from a gitignored `.env` in the repo root —
+**never paste them into chat**:
 
 ```bash
-APPLE_ID=you@icloud.com \
+# either:
+APPLE_ID=you@example.com \
 APPLE_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx \
   ./scripts/sideload-everpwnage.sh
+# or: put the same two lines in .env (gitignored) and just run the script
+./scripts/sideload-everpwnage.sh
 ```
 
 `APPLE_APP_PASSWORD` must be an **app-specific password** from
 https://appleid.apple.com (Sign-In & Security → App-Specific Passwords) — **not**
-your main Apple ID password. If your Apple ID has two-factor auth, the main
-password will NOT work here (this is the #1 reason sideloading fails with
-Legacy iOS Kit). A free Apple ID works; the 7-day cert is fine because the
-jailbreak is untethered and persists after the app expires.
+your main Apple ID password — generated while signed in as the **same** Apple ID
+you pass as `APPLE_ID`. A free Apple ID works; the 7-day cert is fine because
+the jailbreak is untethered and persists after the app expires.
 
-The script: logs in → registers the iPad → signs the IPA → installs it, then
-prints the installed-app list. Needs the iPad plugged in, unlocked, and trusted.
+The script: starts a **local anisette server** (`tools/anisette-server.py`,
+Anisette.py engine) → runs **AltServer-NG** (jaakkopalvaila's AltServer-Linux
+fork with the October-2026 sign-in fixes) against it → signs the IPA, registers
+the iPad, installs it, then prints the installed-app list. Needs the iPad
+plugged in, unlocked, and trusted.
+
+#### Why this exact stack (October 2026 Apple breakage)
+
+Apple broke Apple-ID sign-in for **all** free sideload tools twice in 2026:
+
+* **September 2026:** `gsa.apple.com` answers **HTTP 503** to any sign-in whose
+  `X-Mme-Client-Info` contains `com.apple.dt.Xcode` — this killed AltServer,
+  AltStore and SideStore at once.
+* **2026-10-12/13:** Apple rejects sign-ins where the client identity does not
+  match the anisette platform (**-80045** "This action cannot be completed at
+  this time"), and Android-anisette (AnisetteKit / Apple-Music-APK libraries)
+  gets HTTP 503. This killed Sideloadly, SideStore, iloader and plumesign at
+  once. Public "remote anisette" servers (ani.sidestore.app, ani.f1sh.me,
+  armconverter.com, …) are flagged/dead — using one is why older tools now fail
+  even with a correct password.
+
+The working combination (verified 2026-10-25):
+
+1. **Local anisette** generated from Apple's own libraries (Anisette.py /
+   `libstoreservicescore.so` + `libCoreADI.so` extracted from the Apple Music
+   Android APK) — not a flagged public server. Served by
+   `tools/anisette-server.py` with `X-Apple-I-Client-Time` in strict UTC
+   `YYYY-MM-DDTHH:MM:SSZ` form (AltServer rejects offset-suffixed times).
+2. **AltServer-NG** (`ng-2026-10-20` release), which sends the **Windows-iTunes
+   client identity** `<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1
+   (com.apple.iTunes/12.12.4.1)>` (the only identity Apple currently accepts for
+   GrandSlam sign-in), uses fresh connections per GSA request, and prompts for
+   2FA codes.
+3. Correct credentials (see troubleshooting below).
+
+`plumesign`, stock `AltServer-Linux` (NyaMisty v0.0.5), Cydia Impactor and
+Sideloadly ≤0.70.x all predate these fixes and will fail with -80045 / 503 /
+-22406 even when the password is correct.
 
 Or use a GUI tool instead:
 
@@ -148,26 +186,50 @@ password; that is the #1 fix.
 ### Troubleshooting: Apple rejects the password ("Enter the correct password")
 
 If `scripts/sideload-everpwnage.sh` fails with Apple's
-`Authentication SRP error -22406: Enter the correct password for this Apple
-Account`, the `.env` file is fine (verify: correct email, password is exactly
-19 chars in `xxxx-xxxx-xxxx-xxxx` form, no quotes/CRLF). Apple is rejecting the
-credential itself. Causes, in order of likelihood:
+`Enter the correct password for this Apple Account (-22406)`, Apple is
+rejecting the **credential itself** — the tooling is fine at that point (the
+sign-in reached Apple and was processed; a broken tool would fail earlier with
+-80045 or HTTP 503 instead).
 
-1. **Changing the Apple ID password revokes ALL app-specific passwords.** If the
+You can tell "wrong password" apart from "wrong Apple ID" by testing with a
+throwaway email: a **non-existent** Apple ID fails with **-20970**, while an
+**existing** Apple ID with a bad password fails with **-22406**. So:
+
+* `-22406` → the Apple ID exists, the password is wrong for it.
+* `-20970` → the email is not an Apple ID (typo, or wrong account).
+
+Causes of -22406, in order of likelihood:
+
+1. **A one-character copy/paste slip** in the app-specific password (it still
+   looks right: 19 chars, `xxxx-xxxx-xxxx-xxxx`).
+2. **Generated under a different Apple ID.** App-specific passwords are tied to
+   the account — it must be generated while signed in as the same Apple ID used
+   for `APPLE_ID`.
+3. **Changing the Apple ID password revokes ALL app-specific passwords.** If the
    main password was changed (by you, or by Apple after a security event), every
    previously generated app-specific password is dead.
-2. **Generated under a different Apple ID.** App-specific passwords are tied to
-   the account. It must be generated while signed in as the same Apple ID used
-   for `APPLE_ID`.
-3. **A one-character copy/paste slip** (still 19 chars, still "looks right").
 4. **Security hold** from repeated failed sign-ins (yours and the script's).
 
 Fix: sign in to https://appleid.apple.com with the Apple ID + **main** password +
-2FA, clear any security alert, then **App-Specific Passwords → revoke old →
-generate a new one**, copy it exactly, and put it in `.env` as
-`APPLE_APP_PASSWORD`. To cross-check the password independently, use
-[Sideloadly](https://sideloadly.io/) (Linux GUI): drag in the IPA, enter the
-app-specific password — it reports login failures clearly.
+2FA, confirm the signed-in account is the same one you pass as `APPLE_ID`,
+clear any security alert, then **App-Specific Passwords → revoke old → generate
+a new one**, copy it **exactly** (it is shown only once), and put it in `.env`
+as `APPLE_APP_PASSWORD`. Then re-run the script.
+
+Alternative that needs no app-specific password: put your **main** Apple ID
+password in `.env` instead. Apple will then push a 2FA code to your trusted
+devices and the tool will prompt `Enter the code sent to your device` — type the
+6-digit code and the sign-in completes.
+
+Other errors you may see:
+
+* `-80045` / HTTP 503 → you are using a pre-October-2026 tool or a flagged
+  remote anisette server. Use `scripts/sideload-everpwnage.sh` (local anisette
+  + AltServer-NG) instead.
+* `-22411` after the password was accepted → Apple sent a 2FA code to your
+  trusted devices; the tool needs to prompt for it (AltServer-NG does).
+* `0xe8008024` / "provisioning profile is banned" → Apple revoked the
+  provisioning profile wave of Sept 2026; retry later or with another Apple ID.
 
 ## 5. Jailbreak (on the iPad)
 

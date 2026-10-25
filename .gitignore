@@ -16,3 +16,11 @@ firmware/
 # python
 __pycache__/
 *.pyc
+
+# local secrets / credentials — NEVER commit or push these
+.env
+.env.*
+*.env
+*credential*
+*secret*
+*appleid*

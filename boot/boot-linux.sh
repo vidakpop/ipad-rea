@@ -3,10 +3,17 @@
 # boot-linux.sh — boot Linux on the iPad 2 over USB (kDFU route, no hardware).
 #
 #   ./boot/boot-linux.sh              # enter kDFU over ssh, then upload the chain
-#   ./boot/boot-linux.sh --skip-pwn   # the device is already in kDFU (DFU on the bus)
+#   ./boot/boot-linux.sh --checkm8    # BEST: device in DFU -> checkm8 pwned DFU -> boot
+#   ./boot/boot-linux.sh --skip-pwn   # the device is already pwned (kDFU or checkm8)
 #   ./boot/boot-linux.sh --kdfu-lik   # enter kDFU with Legacy iOS Kit's interactive restore.sh
 #   ./boot/boot-linux.sh --no-uart    # skip the serial capture
 #   UART_DEV=/dev/ttyUSB0 ./boot/boot-linux.sh   # capture the dock UART log too
+#
+# --checkm8 is the recommended route: the A5 is vulnerable to the checkm8
+# SecureROM USB exploit, so NO jailbreak, NO activation bypass, NO Find My
+# iPad workaround is needed.  Put the iPad in DFU mode (Power+Home), then run
+# with --checkm8: tools/checkm8-pwn.py pwns the bootrom in memory and the
+# script continues with the iBEC upload exactly as over kDFU.
 #
 # Chain (docs/k93-boot-linux.md has the full procedure):
 #
@@ -50,6 +57,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --kdfu)     PWN_MODE=kdfu; shift ;;
         --kdfu-lik) PWN_MODE=kdfu-lik; shift ;;
+        --checkm8)  PWN_MODE=checkm8; shift ;;
         --skip-pwn) PWN_MODE=none; shift ;;
         --no-uart)  WANT_UART=0; shift ;;
         --ibec)     IBEC="$2"; shift 2 ;;
@@ -120,6 +128,13 @@ fi
 
 # ---------------------------------------------------------------- pwn -----
 case "$PWN_MODE" in
+    checkm8)
+        echo "==> checkm8: python3 tools/checkm8-pwn.py"
+        echo "    The iPad must be in DFU mode right now (screen black,"
+        echo "    'Apple Mobile Device (DFU Mode)' 05ac:1227 on the bus)."
+        python3 "$ROOT/tools/checkm8-pwn.py"
+        echo "==> device is in pwned DFU (checkm8)"
+        ;;
     kdfu)
         echo "==> kDFU: $ROOT/boot/enter-kdfu.sh (ssh + kloader; no LIK checkout needed)"
         echo "    The iPad must be on, jailbroken (your semitethered script or"

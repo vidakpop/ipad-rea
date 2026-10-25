@@ -354,17 +354,22 @@ class LibUSB:
         t.num_iso_packets = 0
         rc = L.libusb_submit_transfer(transfer)
         if rc != 0:
-            self._free(buf)
+            # LIBUSB_TRANSFER_FREE_BUFFER is set, so libusb_free_transfer frees
+            # buf as well; freeing it here would be a double free.
             L.libusb_free_transfer(transfer)
             return rc, None
         if abandon:
             self._spin(spin_us)
             cancel_rc = L.libusb_cancel_transfer(transfer)
             status, actual = self._wait_transfer(transfer, 500)
+            if status == -1:
+                raise SystemExit('error: %s did not complete after cancel' % name)
             info = (status, actual, cancel_rc)
             L.libusb_free_transfer(transfer)
             return 0, info
         status, actual = self._wait_transfer(transfer, timeout_ms)
+        if status == -1:
+            raise SystemExit('error: %s timed out before completion' % name)
         info = (status, actual, 0)
         L.libusb_free_transfer(transfer)
         return 0, info

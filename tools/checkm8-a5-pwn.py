@@ -517,7 +517,9 @@ def stage2(usb, spin_us, out_spin_us, debug):
     # first `padding` bytes (the final 0x40 packet is never sent).
     w_length = A5_PADDING + 0x40
     data = b'\0' * w_length
-    spin = out_spin_us or auto_out_spin(spin_us, A5_PADDING)
+    # Default to cancelling just before the final 0x40 packet: the debug output
+    # should show actual=0x6C0.  If it shows 0x700 the DFU reached end_of_transfer.
+    spin = out_spin_us or max(1, auto_out_spin(spin_us, A5_PADDING) - 185)
     rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
                             data, abandon=True, spin_us=spin, timeout_ms=1000,
                             name='incomplete DNLOAD')

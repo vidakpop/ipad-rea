@@ -15,6 +15,12 @@
 # with --checkm8: tools/checkm8-a5-pwn.py pwns the bootrom in memory and the
 # script continues with the iBEC upload exactly as over kDFU.
 #
+# RELIABLE VARIANT: pwn the DFU with a Raspberry Pi Pico (RP2040) first —
+# flash build/src/checkm8-a5-pico/8940.uf2, boot the iPad in DFU off the
+# Pico, then plug the iPad back into this host and run --skip-pwn.
+# Full procedure: docs/checkm8-a5-pico.md.  Verify with:
+#   python3 tools/checkm8-a5-pwn.py --stage verify   # serial must show PWND:[checkm8]
+#
 # Chain (docs/k93-boot-linux.md has the full procedure):
 #
 #   jailbroken iOS 9.3.5 (OpenSSH installed, unlocked, USB)

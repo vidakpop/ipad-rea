@@ -16,10 +16,20 @@ DFU mode, so it bypasses everything that was blocking the kDFU route:
 1. You put the iPad in **DFU mode**: hold Power+Home ~10 s until the screen
    goes black, release Power, keep holding Home until the host sees
    `Apple Mobile Device (DFU Mode)` (`05ac:1227`).
-2. `tools/checkm8-a5-pwn.py` (a self-contained Python 3 host port of the
-   a1exdandy/LukeZGD A5 checkm8 sequence, talking to libusb-1.0 via ctypes)
-   sends the exploit. The bootrom's image-signature check is patched out **in
-   memory** and the DFU serial number gains `PWND:[checkm8]`.
+2. The bootrom is pwned. The bootrom's image-signature check is patched out
+   **in memory** and the DFU serial number gains `PWND:[checkm8]`. Two ways to
+   do it:
+   - **Raspberry Pi Pico (RP2040) — RECOMMENDED, see
+     [docs/checkm8-a5-pico.md](checkm8-a5-pico.md).** Flash
+     `build/src/checkm8-a5-pico/8940.uf2` onto a Pico, boot the iPad in DFU
+     off the Pico's USB host port, then move the iPad back to the Linux host.
+     This is the reliable route; the A5 exploit is timing-fragile from a PC
+     host.
+   - `tools/checkm8-a5-pwn.py` (a self-contained Python 3 host port of the
+     a1exdandy/LukeZGD A5 checkm8 sequence, talking to libusb-1.0 via ctypes)
+     sends the exploit directly from the PC. Fallback/experimental — it gets
+     close but the A5 drops off the bus at the reset boundary; use it for
+     `--stage verify` (serial check) regardless of how the pwn was done.
 3. The device is now "pwned DFU" — it looks exactly like the kDFU state the
    old chain produced (`05ac:1227`, unsigned images accepted), so the rest of
    the boot chain is unchanged:

@@ -593,20 +593,12 @@ def exploit(args):
     start = time.time()
 
     dev, handle, desc, serial = acquire(usb, want_serial=True)
-    print('Found:', serial.strip())
+    print('Found:', serial.strip() or '(serial unreadable before resets)')
     print('USB:', usb.describe(dev), 'iSerialNumber index:', desc.iSerialNumber)
     if PWN_MARKER in serial:
         print('Device is already in pwned DFU mode. Nothing to do.')
         usb.release(handle)
         return 0
-    if 'CPID:%04X' % CPID_A5 not in serial:
-        usb.release(handle)
-        raise SystemExit('error: not an A5 device (expected CPID 8940). Serial: %s' % serial.strip())
-    if SRTG_A5 not in serial:
-        usb.release(handle)
-        raise SystemExit('error: CPID is A5 but the serial lacks %s.\n'
-                         'The device is not in SecureROM DFU mode (it is in LLB/iBSS\n'
-                         'DFU mode). Re-enter DFU from a powered-off state.' % SRTG_A5)
     if desc.iSerialNumber == 0 or desc.iSerialNumber == 0xFF:
         usb.release(handle)
         raise SystemExit('error: invalid iSerialNumber index %d' % desc.iSerialNumber)
@@ -615,6 +607,19 @@ def exploit(args):
 
     if args.stage in ('all', '0'):
         stage0(usb)
+        # A wedged DFU often cannot answer a serial read until after the stage-0
+        # resets.  Re-read and validate CPID/SRTG before continuing.
+        dev, handle, desc, serial = acquire(usb, want_serial=True)
+        print('After resets:', serial.strip())
+        usb.release(handle)
+    if 'CPID:%04X' % CPID_A5 not in serial:
+        raise SystemExit('error: not an A5 device (expected CPID 8940). Serial: %s' % serial.strip())
+    if SRTG_A5 not in serial:
+        raise SystemExit('error: CPID is A5 but the serial lacks %s.\n'
+                         'The device is not in SecureROM DFU mode (it is in LLB/iBSS\n'
+                         'DFU mode). Re-enter DFU from a powered-off state.' % SRTG_A5)
+    serial_idx = desc.iSerialNumber
+
     if args.stage in ('all', '1'):
         stage1(usb, serial_idx, args.leak, args.spin_us, args.debug)
     if args.stage in ('all', '2'):

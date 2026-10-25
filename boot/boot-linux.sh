@@ -12,7 +12,7 @@
 # --checkm8 is the recommended route: the A5 is vulnerable to the checkm8
 # SecureROM USB exploit, so NO jailbreak, NO activation bypass, NO Find My
 # iPad workaround is needed.  Put the iPad in DFU mode (Power+Home), then run
-# with --checkm8: tools/checkm8-pwn.py pwns the bootrom in memory and the
+# with --checkm8: tools/checkm8-a5-pwn.py pwns the bootrom in memory and the
 # script continues with the iBEC upload exactly as over kDFU.
 #
 # Chain (docs/k93-boot-linux.md has the full procedure):
@@ -129,10 +129,10 @@ fi
 # ---------------------------------------------------------------- pwn -----
 case "$PWN_MODE" in
     checkm8)
-        echo "==> checkm8: python3 tools/checkm8-pwn.py"
+        echo "==> checkm8: python3 tools/checkm8-a5-pwn.py"
         echo "    The iPad must be in DFU mode right now (screen black,"
         echo "    'Apple Mobile Device (DFU Mode)' 05ac:1227 on the bus)."
-        python3 "$ROOT/tools/checkm8-pwn.py"
+        python3 "$ROOT/tools/checkm8-a5-pwn.py"
         echo "==> device is in pwned DFU (checkm8)"
         ;;
     kdfu)

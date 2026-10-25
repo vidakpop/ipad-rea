@@ -145,6 +145,30 @@ password; that is the #1 fix.
 > untethered, so it persists after the app expires. You only re-sideload if you
 > ever fully restore the iPad.
 
+### Troubleshooting: Apple rejects the password ("Enter the correct password")
+
+If `scripts/sideload-everpwnage.sh` fails with Apple's
+`Authentication SRP error -22406: Enter the correct password for this Apple
+Account`, the `.env` file is fine (verify: correct email, password is exactly
+19 chars in `xxxx-xxxx-xxxx-xxxx` form, no quotes/CRLF). Apple is rejecting the
+credential itself. Causes, in order of likelihood:
+
+1. **Changing the Apple ID password revokes ALL app-specific passwords.** If the
+   main password was changed (by you, or by Apple after a security event), every
+   previously generated app-specific password is dead.
+2. **Generated under a different Apple ID.** App-specific passwords are tied to
+   the account. It must be generated while signed in as the same Apple ID used
+   for `APPLE_ID`.
+3. **A one-character copy/paste slip** (still 19 chars, still "looks right").
+4. **Security hold** from repeated failed sign-ins (yours and the script's).
+
+Fix: sign in to https://appleid.apple.com with the Apple ID + **main** password +
+2FA, clear any security alert, then **App-Specific Passwords → revoke old →
+generate a new one**, copy it exactly, and put it in `.env` as
+`APPLE_APP_PASSWORD`. To cross-check the password independently, use
+[Sideloadly](https://sideloadly.io/) (Linux GUI): drag in the IPA, enter the
+app-specific password — it reports login failures clearly.
+
 ## 5. Jailbreak (on the iPad)
 
 1. Open the **EverPwnage** app on the iPad.

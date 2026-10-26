@@ -122,14 +122,16 @@ If no Pico is available:
 
 4. Success indicators in the debug output:
    - stage 1 feng-shui requests: `status=CANCELLED` (or `STALL`)
-   - stage 2: `incomplete DNLOAD status=CANCELLED actual=1728` (`0x6C0`,
-     **not** `1792`/`0x700` — that means the device fired end_of_transfer
-     and the exploit is dead)
+   - stage 2: `incomplete DNLOAD status=CANCELLED actual=<0x700` (a log
+     line `... (N full packets), 0x... remainder to send` follows, then the
+     `remainder OUT` transfer).  `actual=1792`/`0x700` aborts the run — that
+     means the device fired end_of_transfer and the exploit is dead
    - stage 3: critical IN `status=CANCELLED` or `STALL` (not `COMPLETED`)
    - final serial contains `PWND:[checkm8]`
 5. Tunables (only with a fresh DFU between attempts): `--leak 620|626`,
    `--leak-delay-ms`, `--feng-shui-mode in-cancel|setup-only`,
-   `--init-resets 0|1|3`, `--cancel-at 1728|0`, `--out-spin-us`,
-   `--write-mode complete|abandon`, `--payload classic|luke`.
+   `--init-resets 0|1|3`, `--spin-us` (setup-stage cancel deadline for the
+   critical IN), `--out-spin-us` (stage-2 DNLOAD cancel deadline; lower it
+   if the DNLOAD ever reports `actual=0x700`), `--payload classic|luke`.
    The kernel's enumeration traffic (string reads etc.) shifts the heap
    relative to the Arduino, so `--leak` is the most likely knob.

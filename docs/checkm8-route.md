@@ -77,6 +77,19 @@ DFU mode, so it bypasses everything that was blocking the kDFU route:
   from the Arduino value, so sweep it in 0x40 steps with one fresh DFU
   entry per attempt (if no padding works, sweep `--leak` around 620 and
   re-sweep `--padding`).
+- Why the PC padding differs from the Arduino: the Arduino's patched USB
+  Host Shield library stubs out `Configuring()` (usb_host_library.patch),
+  so the Arduino never sends SET_CONFIGURATION and never reads string
+  descriptors — its only enumeration traffic is GET_DESCRIPTOR(device) and
+  SET_ADDRESS. The Linux kernel enumerates the iPad fully on connect
+  (descriptor reads, string reads incl. the serial, SET_CONFIGURATION),
+  and each of those allocates and frees a response buffer on the
+  device-side DFU heap. That extra churn shifts the free list, so the
+  critical IN's response-buffer/io_request allocations land at a different
+  offset inside the freed io_buffer. The feng shui normalizes most of it,
+  but not all — hence the `--padding` sweep. (A root-cause alternative:
+  boot with `usbcore.authorized_default=0` so the kernel never enumerates
+  the device, then let the tool enumerate it with Arduino-minimal traffic.)
   The stage-3 critical IN is cancelled at the SETUP stage (`--spin-us`).
   `--wait` polls sysfs (zero USB traffic) and starts the exploit the instant
   the iPad enters DFU; `--feng-shui-mode in-cancel` (default) sends the IN

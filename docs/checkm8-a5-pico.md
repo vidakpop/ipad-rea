@@ -122,9 +122,10 @@ If no Pico is available:
 
 4. Success indicators in the debug output:
    - stage 1 feng-shui requests: `status=CANCELLED` (or `STALL`)
-   - stage 2: `incomplete DNLOAD status=CANCELLED actual=<0x700` (a log
-     line `... (N full packets), 0x... remainder to send` follows, then the
-     `remainder OUT` transfer).  `actual=1792`/`0x700` aborts the run — that
+   - stage 2: `incomplete DNLOAD status=CANCELLED actual=<padding+0x40`
+     (0x700 with the default padding) (a log line
+     `... (N full packets), 0x... remainder to send` follows, then the
+     `remainder OUT` transfer).  `actual=padding+0x40` aborts the run — that
      means the device fired end_of_transfer and the exploit is dead
    - stage 3: critical IN `status=CANCELLED` or `STALL` (not `COMPLETED`)
    - final serial contains `PWND:[checkm8]`
@@ -132,6 +133,11 @@ If no Pico is available:
    `--leak-delay-ms`, `--feng-shui-mode in-cancel|setup-only`,
    `--init-resets 0|1|3`, `--spin-us` (setup-stage cancel deadline for the
    critical IN), `--out-spin-us` (stage-2 DNLOAD cancel deadline; lower it
-   if the DNLOAD ever reports `actual=0x700`), `--payload classic|luke`.
-   The kernel's enumeration traffic (string reads etc.) shifts the heap
-   relative to the Arduino, so `--leak` is the most likely knob.
+   if the DNLOAD ever reports `actual=padding+0x40`), `--padding 0x40..0x780`
+   in 0x40 steps (io_buffer offset where the overwrite must land — the
+   pending io_request position inside the freed io_buffer; default 0x6C0),
+   `--payload classic|luke`. The kernel's enumeration traffic (string reads
+   etc.) shifts the heap relative to the Arduino. If the device dies in
+   stage 3 (overwrite OUT times out, then "no DFU device after the final
+   reset"), `--padding` is the first knob to sweep; if no padding works,
+   sweep `--leak` around 620 (±16/±32) and re-sweep `--padding`.

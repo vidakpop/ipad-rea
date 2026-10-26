@@ -68,9 +68,15 @@ DFU mode, so it bypasses everything that was blocking the kDFU route:
   cancelled at a fixed ~1 ms deadline (`--out-spin-us`); the tool then reads
   back how many bytes actually reached the device and sends a remainder
   transfer (an invalid SETUP whose error path leaves the globals alone,
-  wLength = 0x6C0 - received) that lands the device at exactly rcvd=0x6C0
-  of length=0x700 with no timing race — a length-based cancel is impossible
-  on a PC because xHCI reports actual_length only when the data stage ends.
+  wLength = padding - received) that lands the device at exactly
+  rcvd=padding of length=padding+0x40 with no timing race — a length-based
+  cancel is impossible on a PC because xHCI reports actual_length only when
+  the data stage ends.  padding (`--padding`, default 0x6C0, 0x40-aligned,
+  0x40..0x780) is the offset of the pending io_request inside the freed
+  io_buffer where the overwrite must land; the PC heap layout can shift it
+  from the Arduino value, so sweep it in 0x40 steps with one fresh DFU
+  entry per attempt (if no padding works, sweep `--leak` around 620 and
+  re-sweep `--padding`).
   The stage-3 critical IN is cancelled at the SETUP stage (`--spin-us`).
   `--wait` polls sysfs (zero USB traffic) and starts the exploit the instant
   the iPad enters DFU; `--feng-shui-mode in-cancel` (default) sends the IN

@@ -493,8 +493,14 @@ def acquire(usb, want_serial=False, timeout=15.0):
         usb.lib.libusb_get_device_descriptor(dev, byref(desc))
         serial = usb.serial(handle, desc.iSerialNumber) if want_serial else ''
         return dev, handle, desc, serial
-    raise SystemExit('error: could not claim the DFU device (last rc=%s) —\n'
-                     'permission? install the udev rule from boot/boot-linux.sh' % last_rc)
+    if last_rc is None:
+        raise SystemExit('error: no DFU device found within %0.0fs — the device '
+                         'did not (re-)enumerate (a bus reset occasionally '
+                         'wedges\nthe DFU). Re-enter DFU on the iPad (Power+Home) '
+                         'and retry.' % timeout)
+    raise SystemExit('error: could not claim the DFU device (last rc=%d) —\n'
+                     'permission? install the udev rule from boot/boot-linux.sh'
+                     % last_rc)
 
 
 def reset_and_release(usb, handle, settle=1.0):

@@ -113,17 +113,23 @@ If no Pico is available:
 1. Hard-reset the iPad (Power+Home until the Apple logo), then DFU:
    Power+Home ~10 s until black, release Power, keep holding Home.
 2. Do **not** probe the device first (any control transfer can wedge it).
-3. Run:
+3. Start the tool first, then put the iPad in DFU — `--wait` polls sysfs
+   (zero USB traffic) and fires the instant the device appears:
 
    ```
-   python3 -u tools/checkm8-a5-pwn.py --debug
+   python3 -u tools/checkm8-a5-pwn.py --wait --debug
    ```
 
 4. Success indicators in the debug output:
-   - stage 1 feng-shui requests: `status=CANCELLED`
-   - stage 2: `incomplete DNLOAD status=CANCELLED actual=1728` (`0x6C0`)
-   - stage 3: critical IN transfer `status=CANCELLED` (not `COMPLETED`)
+   - stage 1 feng-shui requests: `status=CANCELLED` (or `STALL`)
+   - stage 2: `incomplete DNLOAD status=CANCELLED actual=1728` (`0x6C0`,
+     **not** `1792`/`0x700` — that means the device fired end_of_transfer
+     and the exploit is dead)
+   - stage 3: critical IN `status=CANCELLED` or `STALL` (not `COMPLETED`)
    - final serial contains `PWND:[checkm8]`
 5. Tunables (only with a fresh DFU between attempts): `--leak 620|626`,
-   `--leak-delay-ms`, `--spin-us`, `--out-spin-us`,
+   `--leak-delay-ms`, `--feng-shui-mode in-cancel|setup-only`,
+   `--init-resets 0|1|3`, `--cancel-at 1728|0`, `--out-spin-us`,
    `--write-mode complete|abandon`, `--payload classic|luke`.
+   The kernel's enumeration traffic (string reads etc.) shifts the heap
+   relative to the Arduino, so `--leak` is the most likely knob.

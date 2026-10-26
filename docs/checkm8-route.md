@@ -61,6 +61,16 @@ DFU mode, so it bypasses everything that was blocking the kDFU route:
   0xcc "pre-packets" are toggle dummies and are not sent by the host tool.
   Stage 3 defaults to complete writes (`--write-mode complete`); use
   `--write-mode abandon --debug` for the raw Arduino-style timing.
+- The host tool reproduces the decompiled A5 USB-stack behaviour documented
+  in `build/src/checkm8-a5/README.md`: no transfer whose global state must
+  persist may complete (a status-phase ZLP is processed as a zero-length
+  data packet and resets the globals), and the stage-2 incomplete DNLOAD is
+  cancelled once exactly 0x6C0 of 0x700 bytes are on the wire
+  (`--cancel-at`, length-based, not time-based).  `--wait` polls sysfs (zero
+  USB traffic) and starts the exploit the instant the iPad enters DFU;
+  `--feng-shui-mode in-cancel` (default) sends the IN data transaction per
+  feng shui request like the Arduino (`setup-only` is the old behaviour).
+  See the module docstring of `tools/checkm8-a5-pwn.py`.
 - The old jailbreak/sideload routes (docs/k93-plusx-routes.md,
   docs/k93-no-cydia-toolbox.md) are obsolete for the Linux goal — kept for
   reference only.

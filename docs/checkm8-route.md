@@ -20,7 +20,11 @@ normally-booted) state:
 
 1. With the iPad in recovery: hold **Power** ~5 s until "slide to power off"
    appears, slide it, and wait ~10 s for a complete power-off. (Tool
-   alternative: `python3 tools/recovery-cmd.py shutdown` from this repo.)
+   alternatives: `python3 tools/recovery-cmd.py shutdown` from this repo, or
+   `./build/tools/irecovery/irecovery -c shutdown` — the prebuilt Linux
+   irecovery. To go recovery → normal iOS instead: `.../irecovery -c reboot`
+   with your act.sh activation server running, then `sudo usbmuxd` and
+   `idevice_id -l` to confirm normal mode.)
 2. Cable still plugged in. Hold **Power+Home together ~10 s** — the screen
    goes black and STAYS black (if the Apple logo appears, you started from
    a booted state; power off and retry). Release **Power**, keep holding

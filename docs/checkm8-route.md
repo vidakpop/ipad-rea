@@ -11,6 +11,29 @@ DFU mode, so it bypasses everything that was blocking the kDFU route:
 - no Find My iPad workaround needed (DFU mode does not care about FMI)
 - no sideloading / Apple ID needed
 
+## Entering DFU (05ac:1227) — including from recovery mode (05ac:1281)
+
+checkm8 needs **SecureROM DFU** (`05ac:1227`), not recovery (`05ac:1281`).
+If the iPad is currently showing the iTunes/recovery logo, Power+Home will
+just REBOOT it — DFU entry only works from a fully powered-off (or
+normally-booted) state:
+
+1. With the iPad in recovery: hold **Power** ~5 s until "slide to power off"
+   appears, slide it, and wait ~10 s for a complete power-off. (Tool
+   alternative: `python3 tools/recovery-cmd.py shutdown` from this repo.)
+2. Cable still plugged in. Hold **Power+Home together ~10 s** — the screen
+   goes black and STAYS black (if the Apple logo appears, you started from
+   a booted state; power off and retry). Release **Power**, keep holding
+   **Home** up to ~30 s until the host detects it.
+3. Verify: `lsusb | grep 05ac` must show `05ac:1227` (DFU Mode). While you
+   hold Home, run `python3 -u tools/checkm8-a5-pwn.py --wait --debug ...` in
+   another terminal — it polls sysfs (zero USB traffic) and fires the
+   instant `1227` appears.
+
+If an exploit attempt wedges the device (drops off USB entirely): hold
+Power+Home until the Apple logo (reboots into the semitethered iOS), then
+power off as above and re-enter DFU. One fresh DFU per attempt.
+
 ## What happens
 
 1. You put the iPad in **DFU mode**: hold Power+Home ~10 s until the screen

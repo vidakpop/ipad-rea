@@ -38,6 +38,27 @@ If an exploit attempt wedges the device (drops off USB entirely): hold
 Power+Home until the Apple logo (reboots into the semitethered iOS), then
 power off as above and re-enter DFU. One fresh DFU per attempt.
 
+### Recovery → normal iOS → DFU (the semitether needs act.sh every boot)
+
+Your `act.sh` activation bypass is semitethered: **every** boot needs it, so
+`irecovery -c reboot` from recovery lands back in recovery (`05ac:1281`)
+unless act.sh just activated the device. Correct order:
+
+1. iPad in recovery. Terminal 1: `cd ".../sliver-main" && ./act.sh` — wait
+   for `Successfully activated device.`
+2. Terminal 2 (this repo): `./build/tools/irecovery/irecovery -c reboot`
+   Wait ~30–60 s for the lock screen; check `./tools/usb-mode.sh` shows
+   `NORMAL iOS` (`05ac:12xx`).
+3. From the lock screen, DFU as above (Power+Home ~10 s to black, release
+   Power, keep Home until `./tools/usb-mode.sh watch` prints
+   `DFU (05ac:1227)`). Start the pwn tool with `--wait` first — it fires the
+   instant `1227` appears.
+4. Fully-off alternative: `./build/tools/irecovery/irecovery -c shutdown`,
+   then the Power+Home sequence from off.
+
+Use a plain cable on a direct USB 2.0 port — hubs/hub-cables (DCSD/Kong/etc.)
+are known to break DFU detection (see build/src/checkm8-a5/README.md).
+
 ## What happens
 
 1. You put the iPad in **DFU mode**: hold Power+Home ~10 s until the screen

@@ -44,7 +44,14 @@ Your `act.sh` activation bypass is semitethered: **every** boot needs it, so
 `irecovery -c reboot` from recovery lands back in recovery (`05ac:1281`)
 unless act.sh just activated the device. Correct order:
 
-1. iPad in recovery. Terminal 1: `cd ".../sliver-main" && ./act.sh` — wait
+1. iPad in recovery. If it is stuck in the **recovery loop** (`irecovery -c
+   reboot` re-enters `05ac:1281` instead of booting), exit it first:
+   `./build/tools/irecovery/irecovery -a` (sets `auto-boot` and reboots —
+   "exit recovery loop"), or `-c "setenv auto-boot true"` + `-c reboot`.
+   Also start usbmuxd (`sudo systemctl start usbmuxd`) — `act.sh`'s
+   ideviceactivation looks devices up via usbmuxd only and prints
+   `No device found!` while usbmuxd is down.
+   Terminal 1: `cd ".../sliver-main" && ./act.sh` — wait
    for `Successfully activated device.`
 2. Terminal 2 (this repo): `./build/tools/irecovery/irecovery -c reboot`
    Wait ~30–60 s for the lock screen; check `./tools/usb-mode.sh` shows

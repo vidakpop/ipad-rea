@@ -38,7 +38,6 @@ while [ $i -lt ${#combos[@]} ]; do
     combo="${combos[$i]}"
     leak="${combo%%:*}"
     pad="${combo##*:}"
-    log="/tmp/sweep-leak-$log-$pad-leak.log"  # unique per (leak,padding)
     log="/tmp/sweep-leak${leak}-${pad}.log"
     echo "======== leak=$leak padding=$pad (attempt $((i+1))/${#combos[@]}) ========"
     echo ">>> ENTER DFU NOW: Power+Home ~10s to black, release Power, keep holding Home"

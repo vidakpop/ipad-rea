@@ -10,8 +10,9 @@ set -u
 DIR="${1:-$HOME/Documents}"
 [ -d "$DIR" ] || { echo "error: no such directory: $DIR"; exit 1; }
 
-ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
-[ -n "$ip" ] || ip="this-PCs-IP"
+# prefer a real LAN address (192.168.*, 10.*) over VPN/docker/CGNAT ranges
+ip="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^(192\.168|10\.)' | head -1)"
+[ -n "$ip" ] || ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 
 echo "serving: $DIR"
 echo "on the iPad (same WiFi), open in Safari:"

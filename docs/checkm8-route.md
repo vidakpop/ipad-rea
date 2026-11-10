@@ -133,8 +133,7 @@ are known to break DFU detection (see build/src/checkm8-a5/README.md).
   entry per attempt (if no padding works, sweep `--leak` around 620 and
   re-sweep `--padding`).
 - Reading the --debug output: `overwrite OUT ctrl rc=-7` (timeout) at the
-  stage-3 overwrite is EXPECTED on the A5 and is not by itself the failure:
-  the decompiled `usb_core_handle_usb_control_receive` sends the status ZLP
+  stage-3 overwrite is EXPECTED on the A5 and is not by itself the failure:  the decompiled `usb_core_handle_usb_control_receive` sends the status ZLP
   only when `ep0_data_phase_if_num` is a valid interface with a callback,
   and after stage 2's bus reset that index is stale, so the status-phase IN
   is NAKed forever and the host times out (the Arduino never sends a status
@@ -168,3 +167,34 @@ are known to break DFU detection (see build/src/checkm8-a5/README.md).
 - The old jailbreak/sideload routes (docs/k93-plusx-routes.md,
   docs/k93-no-cydia-toolbox.md) are obsolete for the Linux goal — kept for
   reference only.
+
+## PC-host sweep result (2026-11 session): falsified — use Pico or kDFU
+
+The complete PC-host parameter space was explored on a stock Pop!_OS host
+(kernel-enumerated USB), with stage 2 verified landing exactly on every
+clean run:
+
+- All 29 `--padding` values (0x40..0x780) at the Arduino leak count 620:
+  every value killed the device in stage 3 (overwrite/dnload rc=-7, device
+  off after the final reset). Zero survivors, no PWND.
+- A 12-combo `--leak` grid (588/604/616/620/628/636 x the upstream-good
+  paddings 0x6c0/0x640/0x500/0x540/0x4c0): all died except ONE run
+  (620:0x500) whose feng shui went into STALL mode mid-spray, got
+  `payload OUT rc=-9` (the device answered instead of dying), and survived
+  the final reset — but re-entered DFU wedged (empty serial), no PWND.
+  The state did not reproduce on retries of neighbouring values.
+- ~1 in 3 runs the stage-2 remainder flaked (moved only 0x40 of the
+  expected count). The tool detects this and marks the attempt INVALID so
+  the sweep retries the same value without burning a DFU entry.
+
+Conclusion: matching the a1exdandy/LIK guidance, the A5 heap shaping a PC
+host produces (kernel enumeration churn on the device-side DFU heap) does
+not leave the pending io_request inside the freed io_buffer at ANY tested
+offset or feng-shui count, and one software pwn from stock Linux is not a
+supported path. For the "another OS on the iPad 2" goal use:
+1. jailbreak (EverPwnage, untethered) -> kDFU (enter-kdfu.sh /
+   enter-kdfu-nossy.sh) -> boot-linux.sh --skip-pwn  [software-only], or
+2. checkm8-a5 via Raspberry Pi Pico (build/src/checkm8-a5-pico/8940.uf2,
+   see docs/checkm8-a5-pico.md) for a non-jailbroken pwned DFU.
+Sweep tooling remains in tools/sweep.sh (padding) and tools/sweep-leak.sh
+(leak grid) for future hardware/OS changes.

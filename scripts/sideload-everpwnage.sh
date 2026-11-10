@@ -31,7 +31,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UDID="${UDID:-ae85db46b1dd7faa563fc6eb53780515a67dfcc7}"
-IPA="$ROOT/build/jailbreak/EverPwnage-v2.0.2.ipa"
+IPA="${SIDELOAD_IPA:-$ROOT/build/jailbreak/EverPwnage-v2.0.2.ipa}"
 ALT="$ROOT/build/tools/AltServer-NG"
 ALT_URL="https://github.com/jaakkopalvaila/AltServer-Linux/releases/download/ng-2026-10-20/AltServer-x86_64"
 ANI_PORT="${ANI_PORT:-6969}"

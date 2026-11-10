@@ -671,6 +671,19 @@ def stage2(usb, out_spin_us, padding, debug):
         if info[0] == 4:  # STALL
             print('  warning: remainder OUT STALLed — the device may have left '
                   'its data phase; continuing anyway')
+        if info[1] != remainder:
+            # The remainder must complete exactly so the device sits at
+            # rcvd=padding of length=padding+0x40.  If it stalls early the
+            # overwrite would land at an unknown offset and "test" the wrong
+            # padding value — mark the attempt INVALID so sweep.sh retries
+            # the SAME padding instead of advancing.
+            usb.release(handle)
+            raise SystemExit(
+                'error: INVALID attempt — the remainder transfer moved %d of '
+                '%d bytes, so the device is not at rcvd=%#x of length=%#x and '
+                'the overwrite would land at the wrong offset. This attempt '
+                'does not count: re-enter DFU and retry the same --padding.'
+                % (info[1], remainder, padding, padding + 0x40))
     reset_and_release(usb, handle, settle=0.5)
 
 

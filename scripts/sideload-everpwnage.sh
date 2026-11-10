@@ -32,8 +32,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UDID="${UDID:-ae85db46b1dd7faa563fc6eb53780515a67dfcc7}"
 IPA="${SIDELOAD_IPA:-$ROOT/build/jailbreak/EverPwnage-v2.0.2.ipa}"
-ALT="$ROOT/build/tools/AltServer-NG"
-ALT_URL="https://github.com/jaakkopalvaila/AltServer-Linux/releases/download/ng-2026-10-20/AltServer-x86_64"
+ALT="${ALTSERVER_BIN:-}"
+if [[ -z "$ALT" ]]; then
+  if [[ -x "$ROOT/build/tools/AltServer-NG-1105" ]]; then
+    ALT="$ROOT/build/tools/AltServer-NG-1105"     # ng-2026-11-05: anisette v3, SMS 2FA
+  else
+    ALT="$ROOT/build/tools/AltServer-NG"          # ng-2026-10-20 fallback
+  fi
+fi
+ALT_URL="https://github.com/jaakkopalvaila/AltServer-Linux/releases/download/ng-2026-11-05/AltServer-x86_64"
 ANI_PORT="${ANI_PORT:-6969}"
 VENV_PY="$ROOT/build/venv/bin/python"
 
@@ -64,6 +71,18 @@ if ! ideviceinfo -u "$UDID" -k UniqueDeviceID >/dev/null 2>&1; then
 fi
 echo "[ok] iPad detected: $(ideviceinfo -u "$UDID" -k ProductVersion | tr -d '\n') (UDID $UDID)"
 
+# --- anisette source ---
+# Default since ng-2026-11-05: the v3 server with ONE stable Mac identity
+# (Apple rejects flows whose identity rotates between the two AuthKit calls —
+# that is the -80045-after-auth-200 failure).  Set ALTSERVER_LOCAL=1 to use
+# the legacy local v1 server (Anisette.py) as before.
+if [[ "${ALTSERVER_LOCAL:-}" == "1" ]]; then
+  ANI_URL="http://127.0.0.1:${ANI_PORT}"
+else
+  ANI_URL="https://new.ani.sidestore.io"
+  echo "[..] anisette v3 (one stable identity): $ANI_URL"
+fi
+
 # --- ensure the python venv with Anisette.py ---
 if [[ ! -x "$VENV_PY" ]]; then
   echo "[..] creating build/venv"
@@ -81,7 +100,8 @@ if [[ ! -f "$ANI_DIR/libs.bin" || ! -f "$ANI_DIR/default.prov" ]]; then
   XDG_CONFIG_HOME="$ROOT/build/anisette-config" "$ROOT/build/venv/bin/anisette" new default
 fi
 
-# --- ensure the local anisette server is running ---
+# --- ensure the local anisette server is running (legacy local mode only) ---
+if [[ "${ALTSERVER_LOCAL:-}" == "1" ]]; then
 if ! curl -sf -o /dev/null "http://127.0.0.1:${ANI_PORT}/"; then
   echo "[..] starting local anisette server on 127.0.0.1:${ANI_PORT}"
   nohup "$VENV_PY" "$ROOT/tools/anisette-server.py" --port "$ANI_PORT" \
@@ -96,6 +116,7 @@ if ! curl -sf -o /dev/null "http://127.0.0.1:${ANI_PORT}/"; then
   exit 1
 fi
 echo "[ok] local anisette server: http://127.0.0.1:${ANI_PORT}/"
+fi  # legacy local anisette mode
 
 # --- fetch AltServer-NG if needed ---
 mkdir -p "$ROOT/build/tools"
@@ -109,7 +130,7 @@ fi
 echo "[..] signing + installing EverPwnage as $APPLE_ID (app-specific password)"
 if [ -n "${ALTSERVER_DEBUG:-}" ]; then out_tail=100; else out_tail=25; fi
 echo "     if Apple pushes a 2FA code to your devices, type it when asked"
-timeout 280 env ALTSERVER_ANISETTE_SERVER="http://127.0.0.1:${ANI_PORT}" \
+timeout 280 env ALTSERVER_ANISETTE_SERVER="$ANI_URL" \
   "$ALT" ${ALTSERVER_DEBUG:+-d -d -d} -u "$UDID" -a "$APPLE_ID" -p "$APPLE_APP_PASSWORD" "$IPA" 2>&1 \
   | scrub | tail -n "$out_tail" || true
 

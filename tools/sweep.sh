@@ -26,7 +26,9 @@ while [ $i -lt ${#paddings[@]} ]; do
     log="/tmp/sweep-$p.log"
     echo "================ padding=$p (attempt $((i+1))/${#paddings[@]}) ================"
     echo ">>> ENTER DFU NOW: Power+Home ~10s to black, release Power, keep holding Home"
-    $TOOL --wait --wait-timeout 120 --debug --padding "$p" 2>&1 | tee "$log"
+    # long wait window: the tool polls sysfs continuously, so there is no
+    # gap between attempts in which a DFU entry could be missed.
+    $TOOL --wait --wait-timeout 3600 --debug --padding "$p" 2>&1 | tee "$log"
     if grep -q 'PWND:\[checkm8\]' "$log"; then
         echo "*** SUCCESS at padding=$p — device is in pwned DFU ***"
         echo "Next: ./boot/boot-linux.sh --skip-pwn"

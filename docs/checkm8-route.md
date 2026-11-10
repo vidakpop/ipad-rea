@@ -132,6 +132,20 @@ are known to break DFU detection (see build/src/checkm8-a5/README.md).
   from the Arduino value, so sweep it in 0x40 steps with one fresh DFU
   entry per attempt (if no padding works, sweep `--leak` around 620 and
   re-sweep `--padding`).
+- Reading the --debug output: `overwrite OUT ctrl rc=-7` (timeout) at the
+  stage-3 overwrite is EXPECTED on the A5 and is not by itself the failure:
+  the decompiled `usb_core_handle_usb_control_receive` sends the status ZLP
+  only when `ep0_data_phase_if_num` is a valid interface with a callback,
+  and after stage 2's bus reset that index is stale, so the status-phase IN
+  is NAKed forever and the host times out (the Arduino never sends a status
+  phase there at all — `ctrlReq_SETUP` + `send_out` only). The data stage
+  still lands. The REAL failure signal is the device dropping off the USB
+  bus entirely after the final reset ("no DFU device after the final
+  reset"): the overwrite hit a live structure because the pending
+  io_request is not at the swept offset on the PC heap layout. Keep
+  sweeping; a wrong-but-harmless padding shows up as "exploit failed —
+  device did not enter pwned DFU mode" (device alive, no PWND), which is
+  the useful signal that the occupation region is close.
 - Why the PC padding differs from the Arduino: the Arduino's patched USB
   Host Shield library stubs out `Configuring()` (usb_host_library.patch),
   so the Arduino never sends SET_CONFIGURATION and never reads string

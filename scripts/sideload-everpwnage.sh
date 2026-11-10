@@ -107,10 +107,11 @@ fi
 
 # --- sign + install (talks to Apple; can take ~30-60s) ---
 echo "[..] signing + installing EverPwnage as $APPLE_ID (app-specific password)"
+if [ -n "${ALTSERVER_DEBUG:-}" ]; then out_tail=100; else out_tail=25; fi
 echo "     if Apple pushes a 2FA code to your devices, type it when asked"
 timeout 280 env ALTSERVER_ANISETTE_SERVER="http://127.0.0.1:${ANI_PORT}" \
   "$ALT" ${ALTSERVER_DEBUG:+-d -d -d} -u "$UDID" -a "$APPLE_ID" -p "$APPLE_APP_PASSWORD" "$IPA" 2>&1 \
-  | scrub | tail "${ALTSERVER_DEBUG:+-80}" -25 || true
+  | scrub | tail -n "$out_tail" || true
 
 echo
 echo "[..] installed apps on the iPad:"

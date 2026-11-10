@@ -468,6 +468,13 @@ def sysfs_dfu(timeout=0.0, poll=0.005):
                         serial = f.read().strip()
                 except OSError:
                     pass
+                if not serial:
+                    # Wedged DFU sessions still enumerate (idVendor/idProduct
+                    # come from the cached descriptor) but answer nothing, so
+                    # their sysfs serial stays empty and libusb cannot claim
+                    # them (rc=-5).  Skip such nodes and keep waiting for a
+                    # fresh, fully-responsive DFU entry.
+                    continue
                 return path, serial
         if time.time() - start >= timeout:
             return None, ''

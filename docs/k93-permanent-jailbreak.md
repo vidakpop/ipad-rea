@@ -293,3 +293,34 @@ legitimate "usable forever" state: you can install any old 32-bit apps/tweaks
 and, more importantly for this project, boot Linux. I won't help with
 iCloud activation-lock bypass — and note the Linux boot chain does not depend
 on iOS activation at all, so it is not a blocker here.
+
+## November 2026 Apple-flow findings (measured on this host)
+
+- The week-long `-80045` wall was NOT account quota: a local v1 anisette
+  server (Anisette.py) hands out a NEW device identity per request, and
+  Apple rejects flows whose identity changes between the two GrandSlam
+  calls — hence auth 200 + `-80045` at the install step.  Fixed by
+  AltServer-Linux-NG 2026-11-05 + the v3 anisette server
+  (new.ani.sidestore.io): ONE provisioned, persisted identity.
+- App-specific passwords are refused by the current GrandSlam SRP flow with
+  `-22406` even when correctly minted.  Signing in with the MAIN Apple ID
+  password works, then Apple 2FA-challenges.
+- Accounts with NO trusted Apple device (SMS-only 2FA) work in
+  AltServer-NG-11-05 (it implements Apple's SMS push) and in
+  iloader >= v2.4.1 (client-info override fix, Oct 28 2026).  plumesign
+  v2.7.2's SMS send fails with `SRP error 500` (open upstream bug —
+  claration/impactor issues #76/#305; Apple 403s gsa.apple.com/auth* calls
+  for it post-login).  Repeated retry attempts make throttling worse.
+- **iOS 9.3.5 installd**: AltServer-NG's signed app (valid profile, matching
+  entitlements, complete Apple Root+WWDR-G3+dev-cert CMS chain, correct
+  Info.plist/bundle-id, armv7, correct device clock, device provisioned)
+  fails VerifyingApplication with 0xe800800d (AltServer's own install) and
+  0xe8008001 (ideviceinstaller of the same artifact).  Both tools find the
+  Apple side fully working; the on-device verify step is the remaining
+  blocker on 9.3.5.  Community datapoint: a user reported sideloading
+  EverPwnage onto an iPad 3rd gen (9.3.5) successfully with Sideloadly
+  (Windows) — so 9.3.5 is not fundamentally unable to verify; the route
+  being tested next is iloader v2.4.1 (its signing/install stack is
+  legacy-oriented and its login flow is the current reference).
+- Toolchain on this host: AltServer-NG-1105 (build/tools/), plumesign 2.7.2
+  (build/tools/), iloader v2.4.1 (build/tools/iloader-bin/ + /tmp/iloader.log).

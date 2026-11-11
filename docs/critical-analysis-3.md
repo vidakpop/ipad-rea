@@ -75,3 +75,53 @@ things that change this device's fate:
 - Books server http://192.168.0.15:8088 — unchanged, unaffected.
 - Sideload installs remain blocked by the identity wall (proven again tonight with the
   correctly dual-hashed no-get-task-allow variant: same -25300).
+
+## Round 4 — checkm8 USB physics, measured live (Nov 11/12 night)
+
+### Native (axi0mX host) flow refuted on 838.3 by direct test
+- req_stall (CLEAR_FEATURE EP 0x80) → device STALLs as expected
+- then EVERY sync descriptor leak (GET_DESCRIPTOR string, wLength 0x80) HANGS:
+  no data, no stall, 500ms timeouts. With or without the preceding req_stall.
+- The hang is not a malfunction — it IS checkm8's premise on this ROM: the
+  838.3 USB-task keeps the request pending (allocation retained) instead of
+  completing. The 1458.2 (4S) flow that works from laptops relies on the device
+  completing transfers; 838.3 never completes IN responses on its own.
+- Consequence: **no plain-control-transfer host flow (Linux, macOS, or Windows)
+  can drive stage 1 on iBoot-838.3.** The Arduino's per-packet manual dispatching
+  is not a convenience — it is the only way to walk the 838.3 state machine.
+
+### Pacing curve (sketch mode, live)
+| cancel deadline | delivered | outcome |
+|---|---|---|
+| 400 µs  | 0x100 (4 pkts)  | pending, incomplete |
+| 1.1 ms  | 0x140 (5 pkts)  | pending, incomplete |
+| 9 ms    | 0x700 then COMPLETED at 9.1 ms | end_of_transfer fires; global state reset |
+
+The 0x700 data stage takes ~8.8 ms on this controller, and the status phase is
+hardware-scheduled immediately behind the last data packet — usbfs has no
+cancel window between them. The sketch mode's "remainder transfer" already
+lands the device at rcvd=padding of length=padding+0x40 with no status (the
+knife-edge state), and stage 3 still dies identically — so the remaining
+defect is in stage 3 fidelity: the critical-IN (setup + one IN packet, abort
+mid-data) leaves the 0x81 request's io_request armed on the Arduino — that
+armed request is what the overwrite's invalid (0x00,0x00) SETUP writes into.
+A kernel-managed critical-IN that never receives data never arms it.
+
+### Corrections to earlier conclusions
+1. sync descriptor requests COMPLETED observable data (actual=0x100...) on OUT,
+   but IN responses hang — the port's in-cancel feng shui was the only working
+   stage-1 shape all along.
+2. "Borrow a Mac" does NOT open this device's DFU: the hang is device-side.
+   macOS libusb would hit the identical wall. (The Mac helps OTHER cpids, not
+   838.3.)
+3. The bus reset before stage 1 wedges a fresh DFU entry about half the time —
+   use --init-resets 0.
+
+### What remains, ranked
+1. build/src/checkm8-a5-pico (in this repo): a $4 Raspberry Pi Pico dongle,
+   no soldering, plugs into the laptop, runs the proven 838.3 sequence raw.
+   This is the only remaining route to pwned DFU on this iPad.
+2. Continued stage-3 fidelity RE against iBoot-838.3's SETUP-in-data state
+   machine (needs a USB packet analyzer or deterministic emulator — software-
+   only, but a project, not a tweak).
+3. Everything else tonight: closed with signed verdicts.

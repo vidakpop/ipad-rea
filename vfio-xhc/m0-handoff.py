@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""m0-handoff.py — VFIO claim of the Renesas uPD720202 (0000:02:00.0).
+"""m0-handoff.py — VFIO claim of the AMD Cezanne USB 3.1 (0000:04:00.3).
 
 Milestone 0 of docs/vfio-xhc-plan.md:
   1. unbind from xhci-pci-renesas (the webcam's bus dies — harmless)
@@ -12,10 +12,10 @@ Run with sudo. Idempotent: safe to re-run.
 """
 import ctypes, fcntl, mmap, os, struct, sys, time
 
-BDF = "0000:02:00.0"
+BDF = "0000:04:00.3"
 DRIVER_PATH = "/sys/bus/pci/drivers"
-VENDOR_RENESAS = 0x1912
-DEVICE_UPD720202 = 0x0015
+VENDOR_AMD = 0x1022
+DEVICE_CEZANNE_USB = 0x1639
 GROUP = None  # discovered
 
 VFIO_TYPE = ord('V') << 8
@@ -52,7 +52,7 @@ def unbind_and_bind():
         time.sleep(1)
     # ensure vfio-pci knows the device
     with open("%s/vfio-pci/new_id" % DRIVER_PATH, "w") as f:
-        f.write("%04x %04x" % (VENDOR_RENESAS, DEVICE_UPD720202))
+        f.write("%04x %04x" % (VENDOR_AMD, DEVICE_CEZANNE_USB))
     time.sleep(1)
     d = read("/sys/bus/pci/devices/%s/driver" % BDF) if os.path.exists("/sys/bus/pci/devices/%s/driver" % BDF) else None
     if not (d and d.endswith("vfio-pci")):
@@ -65,7 +65,7 @@ def vfio_open(group):
 
 def main():
     global GROUP
-    print("== m0: VFIO handoff of %s (Renesas uPD720202) ==" % BDF)
+    print("== m0: VFIO handoff of %s (AMD Cezanne xHC) ==" % BDF)
     ven = read("/sys/bus/pci/devices/%s/vendor" % BDF)
     dev = read("/sys/bus/pci/devices/%s/device" % BDF)
     print("device id: %s:%s" % (ven, dev))

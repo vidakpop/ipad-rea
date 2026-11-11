@@ -324,3 +324,26 @@ on iOS activation at all, so it is not a blocker here.
   legacy-oriented and its login flow is the current reference).
 - Toolchain on this host: AltServer-NG-1105 (build/tools/), plumesign 2.7.2
   (build/tools/), iloader v2.4.1 (build/tools/iloader-bin/ + /tmp/iloader.log).
+
+## November 11, 2026 — software-only code-exec map (all routes tested today)
+
+Device: iPad2,1 9.3.5 (13G36), Sliver-hacktivated, FMI=on (previous owner's Apple ID).
+
+Proven working (kept for reuse):
+- Working Apple flow: AltServer-NG-1105 + anisette-v3 identity; cert (MH9NY79Z6V, team 896SAKKZHH) valid to Nov 11 2027.
+- Full local signing set recovered: private key (iloader keyring) + cert + 7-day profile (44db3a6e-1d33) match verified via pubkey SHA-1.
+- Local signing with Dadoum Sideloader (built from source, LDC): `sideloader sign -c cert.pem -k key.pem -m profile.mobileprovision <.app>` works perfectly.
+- Stock DeveloperDiskImage 9.3 (haikieu mirror) + its `.signature` mounts fine (pymobiledevice3 `mounter mount-developer`), debugserver service runs.
+
+Route results (all today):
+1. installd verify (libMIS) — 0xe800800d with THREE independent signers (AltServer-NG, iloader/isideload, Sideloader-local) on this device; device syslog shows `SecTrustEvaluate [leaf IssuerCommonName SubjectCommonName]` + `MIS: Auth agent contact failure (entitlement status 0)`. Community-corroborated: hacktivated devices fail free-signing installs; only legit (MDM/normal) activation sideloads.
+2. `ideviceinstaller -l` — ZERO user apps: the "semitether" was activation-only, never a jailbreak.
+3. idevicebackup2 restore (for +x planting via mbdb-add.py crafted record) — FMI-blocked: `MBErrorDomain/211 Find My iPhone must be disabled before restoring`.
+4. debugserver `--launch=frontboard` (per DDI ServiceAgent) — spawns installed-bundle paths only; **EOperation not permitted** for signed binaries under /var/mobile/Media (sandbox exec policy; EACCES-vs-EPERM mapping rules out the missing +x bit as the primary cause; Preferences control run spawns but fails attach without get-task-allow, confirming the phase separation).
+5. Custom DeveloperDiskImage forge:
+   - HFS+200MB (mkfs.hfsplus+pkexec loop) with full stock DDI tree + signed EverPwnage in /Developer/Applications/EP.app
+   - hand-built UDIF (mish 204-byte header, entries@0xCC, chunk type 0x80000005=zlib 1MiB, koly XMLOffset@0xD8/XMLLength@0xE0, verified roundtrip) — **ImageMountFailed** in all variants: Developer/Crash types, stock signature, 128-byte zero signature, 1-byte dummy crashes the daemon (signature is parsed, not merely present).
+   - The stock `.signature` is a RAW 128-byte RSA signature, hash-bound to the image — not forgeable. Signature check confirmed enforced for both Developer and Crash image types on iOS 9.3.5.
+6. Apple still signs iPad2,1 9.3.5 ipsw (ipsw.me) — restore is always possible as a recovery path (but would land at FMI activation lock without the previous owner's credentials).
+
+Conclusion: every pure-software route to code execution on a hacktivated iPad2/9.3.5 was eliminated empirically. Remaining keys: (a) legit activation (previous-owner FMI removal, or Apple FMI removal with proof of purchase), or (b) one-time hardware checkm8 (Pi Pico/Arduino is the only remaining no-jailbreak path; PC-host route already falsified and documented).

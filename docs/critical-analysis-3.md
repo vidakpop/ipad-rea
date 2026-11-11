@@ -125,3 +125,30 @@ A kernel-managed critical-IN that never receives data never arms it.
    machine (needs a USB packet analyzer or deterministic emulator — software-
    only, but a project, not a tweak).
 3. Everything else tonight: closed with signed verdicts.
+
+## Round 5 — the primitive identified: overhang packets (end of night)
+
+Artifact provenance audit (settled):
+- the vanilla a1exdandy sketch's `#define A5_8942` is just its clone's last config; its
+  constants.h carries both blocks; our port uses the A5_8940 block (padding 0x6C0,
+  payload 704B sha1 63ddb...) — CORRECT for iPad 2,1 / S5L8940X
+- LukeZGD's A5_8940 payload (640B) is carried as --payload luke; never yet tried on
+  device; the shared overwrite (64B b9fe...) is common lineage
+- ipwndfu-rewrite-c (checkm8_libusb): A10-only, stock libusb, no A5 value
+
+THE primitive, understood: the sketch's set_global_state sends SETUP(wLength=0x40)
+followed by TWO 0x40 OUT packets. The 838.3 DFU reader has no length check, so the
+second packet is ingested past the declared length — that overhang corrupts the
+global USB state (the exploit's engine). Observed live tonight: usbfs delivers
+exactly wLength and censors the overhang (actual=64 on our 0x80-data submission).
+xHCI/EHCI enforce wLength at the hardware TD level — so ANY kernel-managed host
+stack (Linux/macOS/Windows, libusb or not) cannot emit the primitive.
+
+Software-only paths that remain (ranked, honest):
+1. Custom Linux kernel module driving the xHC transfer rings directly: hand-built
+   TD chains can emit SETUP + over-length data + no-status at uframe precision.
+   Real project (days), zero hardware, this laptop. The only remaining pure-software
+   route to pwned DFU on iBoot-838.3.
+2. --payload luke variant attempt (cheap; stage-3 death precedes payload use, so
+   unlikely to matter until stage-3 landing is fixed).
+3. The $4 Pi Pico (build/src/checkm8-a5-pico) — minutes, proven, but hardware.

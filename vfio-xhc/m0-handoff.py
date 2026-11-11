@@ -29,14 +29,15 @@ def _IOW(nr, sz):
 def _IOWR(nr, sz):
     return (3 << 30) | ((sz & 0x3FFF) << 16) | (VFIO_TYPE << 8) | nr
 
+# values verified against /usr/include/linux/vfio.h on THIS kernel
 VFIO_GET_API_VERSION        = _IO(VFIO_BASE + 0)
 VFIO_CHECK_EXTENSION       = _IO(VFIO_BASE + 1)
+VFIO_SET_IOMMU             = _IO(VFIO_BASE + 2)   # !!! +2 on modern headers
 VFIO_GROUP_SET_CONTAINER   = _IO(VFIO_BASE + 4)
 VFIO_GROUP_UNSET_CONTAINER = _IO(VFIO_BASE + 5)
-VFIO_SET_IOMMU             = _IO(VFIO_BASE + 10)
-VFIO_DEVICE_GET_INFO       = _IOWR(VFIO_BASE + 16, 16)
-VFIO_DEVICE_GET_REGION_INFO = _IOWR(VFIO_BASE + 17, 40)
-VFIO_DEVICE_NUM_IRQS       = _IO(VFIO_BASE + 15)
+VFIO_GROUP_GET_DEVICE_FD   = _IO(VFIO_BASE + 6)   # arg = ptr to name, returns fd
+VFIO_DEVICE_GET_INFO       = _IO(VFIO_BASE + 7)
+VFIO_DEVICE_GET_REGION_INFO = _IO(VFIO_BASE + 8)
 VFIO_IOMMU_TYPE1 = 1
 
 
@@ -76,14 +77,6 @@ def unbind_and_bind():
         print("[!!] bind failed; driver now: %s" % cur)
 
 
-def open_device_fd():
-    # newer kernels export /dev/vfio/devices/<bdf>
-    p = "/dev/vfio/devices/%s" % BDF
-    if os.path.exists(p):
-        return os.open(p, os.O_RDWR)
-    return None
-
-
 def ioctl(fd, req, buf):
     return fcntl.ioctl(fd, req, buf, True)
 
@@ -107,35 +100,35 @@ def main():
     if not ok:
         sys.exit(1)
 
+    # SET_IOMMU must come BEFORE attaching the group (kernel refuses otherwise)
+    fcntl.ioctl(cfd, VFIO_SET_IOMMU, VFIO_IOMMU_TYPE1)  # raw value, not a pointer
+    print("container set to type1")
     gfd = os.open("/dev/vfio/%d" % group, os.O_RDWR)
     fcntl.ioctl(gfd, VFIO_GROUP_SET_CONTAINER, struct.pack("i", cfd))
-    fcntl.ioctl(cfd, VFIO_SET_IOMMU, struct.pack("I", VFIO_IOMMU_TYPE1))
     print("group attached to type1 container")
 
-    dfd = open_device_fd()
-    if dfd is None:
-        sys.exit("[!!] no /dev/vfio/devices cdev on this kernel — "
-                 "needs kernel >= 5.0 vfio_no_cdev off; report this")
+    # classic API: get the per-device fd through the group fd
+    name = BDF.encode() + b"\x00"
+    buf = bytearray(len(name))
+    buf[:] = name
+    dfd = fcntl.ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, bytes(buf))
+    if dfd < 0:
+        sys.exit("[!!] GET_DEVICE_FD failed")
     print("device fd: %s" % dfd)
 
-    # VFIO_DEVICE_GET_INFO: struct {argsz, flags, num_regions, num_irqs}
+    # struct vfio_device_info { u32 argsz, flags, num_regions, num_irqs }
     buf = bytearray(struct.pack("IIII", 16, 0, 0, 0))
     ioctl(dfd, VFIO_DEVICE_GET_INFO, buf)
     argsz, flags, num_regions, num_irqs = struct.unpack("IIII", buf)
     print("device info: flags=%#x regions=%d irqs=%d" % (flags, num_regions, num_irqs))
 
-    # Region 0 = config/BARs
-    # struct vfio_region_info { argsz, flags, index(u64), offset(u64), size(u64), cap_offset, reserved }
-    ri = bytearray(struct.pack("IIQQQII", 40, 0, 0, 0, 0, 0, 0))
-    # layout: argsz(4) flags(4) index(4+pad4? no: struct is
-    #   u32 argsz; u32 flags; u64 index; ... with implicit pad after flags? Actually:
-    #   argsz u32; flags u32; then u64 index naturally aligned at offset 8 — total 40.
-    struct.pack_into("II", ri, 0, 40, 0)
+    # struct vfio_region_info { u32 argsz, flags, index, cap_offset, u64 size, u64 offset }
+    ri = bytearray(struct.pack("IIIIQQ", 32, 0, 0, 0, 0, 0))
     ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, ri)
-    argsz, rflags = struct.unpack_from("II", ri, 0)
-    index, offset, size = struct.unpack_from("QQQ", ri, 8)
-    print("region0(BAR): flags=%#x offset=%#x size=%#x" % (rflags, offset, size))
-    if not (rflags & 0x2):  # VFIO_REGION_INFO_FLAG_MMAP
+    argsz, rflags, rindex, capoff = struct.unpack_from("IIII", ri, 0)
+    size, offset = struct.unpack_from("QQ", ri, 16)
+    print("region0(BAR): flags=%#x index=%d offset=%#x size=%#x" % (rflags, rindex, offset, size))
+    if not (rflags & 0x4):  # VFIO_REGION_INFO_FLAG_MMAP
         print("[!!] region0 not mmap-able")
         sys.exit(1)
 

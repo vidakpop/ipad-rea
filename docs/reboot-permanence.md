@@ -62,3 +62,19 @@ credentials.
 - Store trials: Documents 5 / Adobe Reader / Dropbox-class legacy apps may install
   like Thyme did — per-app licensing is flaky, not universally dead.
 - iPad usable state: kept at FactoryActivated via act.sh after any reboot.
+
+## Post-script: the "semitethered" assumption resolved (same night)
+
+The user's semitethered state was long treated as possible live code execution. The
+repo's own jailbreak probe (tools/zipconduit-install.py with build/fakeapp/Kdfu.app,
+unsigned) settles it:
+
+```
+ApplicationVerificationFailed: 0xe800801c (No code signature found.)
+```
+
+Per boot/enter-kdfu-nossy.sh: "the iPad looks STOCK — the install was rejected at
+signature verification." The user's semitethered is Sliver's hacktivation (act.sh
+re-run after reboot), not a jailbreak. No code execution exists on this device.
+The kdfu→Linux chain remains fully built and waiting on a boot-chain exploit
+(checkm8 via macOS host, or hardware).

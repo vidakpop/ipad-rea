@@ -73,3 +73,40 @@ App Store sign-in works; iCloud sign-in does not.
 2. App Store channel (this doc) — user-value + future parser-bug
    research inside store apps.
 3. Genuine activation (previous owner — unavailable).
+
+## Exact app picks (Nov 5 2026 audit)
+
+| App | App Store id | Requires | Price |
+|-----|--------------|----------|-------|
+| **Thyme - A Modern Kitchen Timer** | id771737226 | iOS 9.0 | FREE |
+| LiveFrame | (search "LiveFrame") | iOS 9.3.5 | Free+$4.99 |
+| AVPlayerHD | (search "AVPlayerHD") | iOS 9.0 | $2.99 |
+| Light Alarm | (search "Light Alarm") | iOS 9.0 | $6.99 |
+
+- Thyme: iPhone app → set App Store search filter "iPhone Only",
+  stove-face UI, 2x button to fill screen.
+- **VLC dropped iOS 9-12 + all 32-bit iPads on Nov 3 2026** (v3.7.4) —
+  only via Purchased trick if downloaded before.
+- 1,179 US App Store listings still pass iOS 9 + iPad2 checks —
+  mostly abandoned games/utilities; dashpadd screened the useful 4.
+
+## Safari HTTPS fix (do this too)
+
+- http://x1.i.lencr.org/ (http NOT https) → Install Profile →
+  installs ISRG Root X1 → all Let's Encrypt sites load again on iOS 9.
+- iOS 9 has no extra "trust" toggle — that's the whole fix.
+
+## Exploitable-gap map (software-only, ranked)
+
+1. App Store install channel (FairPlay path) — dodges libmis wall.
+   Needs: on-device sign-in test.
+2. AVPlayerHD legacy file-import (iTunes File Sharing → AFC-writable
+   Documents dir) with ancient bundled ffmpeg = the one store-app
+   surface where we control parsed input. RCE would run inside a
+   genuine signed process → chainable to phoenix.c kernel exploit.
+   Research-grade: weeks, needs payment method for the $2.99.
+3. System parsers on 9.3.5 (Safari/WebKit, ImageIO, CoreGraphics,
+   MediaPlayer) are ALL frozen 2016 code — every bug fixed in iOS
+   10-13 is still open. No public weaponized 32-bit chain exists;
+   building one = months. Reachable via our LAN books server.
+4. checkm8 A5 host sweep — unchanged, standing.

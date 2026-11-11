@@ -705,8 +705,8 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug):
     # transfer — is never sent.
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
-                            0x81, b'', abandon=True, cancel_at=0,
-                            abandon_timeout_ms=max(spin_us, 1) / 1000.0,
+                            0x81, b'', abandon=True, cancel_at=0x40,
+                            abandon_timeout_ms=1.5,
                             timeout_ms=500, name='critical IN')
     if debug:
         debug_raw('critical IN', rc, info)

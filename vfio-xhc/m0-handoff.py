@@ -38,6 +38,8 @@ VFIO_GROUP_UNSET_CONTAINER = _IO(VFIO_BASE + 5)
 VFIO_GROUP_GET_DEVICE_FD   = _IO(VFIO_BASE + 6)   # arg = ptr to name, returns fd
 VFIO_DEVICE_GET_INFO       = _IO(VFIO_BASE + 7)
 VFIO_DEVICE_GET_REGION_INFO = _IO(VFIO_BASE + 8)
+VFIO_DEVICE_BIND_IOMMUFD   = _IO(VFIO_BASE + 18)
+VFIO_DEVICE_ATTACH_IOMMUFD_PT = _IO(VFIO_BASE + 19)
 VFIO_IOMMU_TYPE1 = 1
 
 
@@ -100,26 +102,35 @@ def main():
     if not ok:
         sys.exit(1)
 
-    # SET_IOMMU must come BEFORE attaching the group (kernel refuses otherwise)
-    fcntl.ioctl(cfd, VFIO_SET_IOMMU, VFIO_IOMMU_TYPE1)  # raw value, not a pointer
-    print("container set to type1")
-    gfd = os.open("/dev/vfio/%d" % group, os.O_RDWR)
-    fcntl.ioctl(gfd, VFIO_GROUP_SET_CONTAINER, struct.pack("i", cfd))
-    print("group attached to type1 container")
+    # Legacy container (type1) is dead on this kernel (iommufd era) — the
+    # group->container attach is only needed to claim the group exclusively;
+    # BAR mmap works through the device fd regardless. Defer DMA concerns to M1.
+    # iommufd era ONLY: do not touch the legacy group/container (claiming the
+    # group makes the cdev BIND_IOMMUFD fail with EBUSY — they are exclusive).
+    print("[note] skipping legacy group/container claim (iommufd path)")
 
-    # classic API: get the per-device fd through the group fd
-    name = BDF.encode() + b"\x00"
-    buf = bytearray(len(name))
-    buf[:] = name
-    dfd = fcntl.ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, bytes(buf))
-    if dfd < 0:
-        sys.exit("[!!] GET_DEVICE_FD failed")
-    print("device fd: %s" % dfd)
+    # iommufd era: cdev fd -> BIND_IOMMUFD -> ioctls unlocked
+    try:
+        ifd = os.open("/dev/iommu", os.O_RDWR)
+        print("iommufd: %d" % ifd)
+    except OSError as e:
+        sys.exit("[!!] open /dev/iommufd failed: %s" % e)
+    import glob as _glob
+    cdevs = sorted(_glob.glob("/dev/vfio/devices/vfio*"))
+    if not cdevs:
+        sys.exit("[!!] no /dev/vfio/devices cdev")
+    dfd = os.open(cdevs[0], os.O_RDWR)
+    print("cdev: %s fd=%d" % (cdevs[0], dfd))
+    # struct vfio_device_bind_iommufd {argsz, flags, iommufd(s32), out_devid, token_ptr(u64)}
+    bind = bytearray(struct.pack("<IIiIQ", 24, 0, ifd, 0, 0))
+    ioctl(dfd, VFIO_DEVICE_BIND_IOMMUFD, bind)
+    devid = struct.unpack_from("<I", bind, 8)[0]
+    print("bound to iommufd: devid=%d" % devid)
 
-    # struct vfio_device_info { u32 argsz, flags, num_regions, num_irqs }
-    buf = bytearray(struct.pack("IIII", 16, 0, 0, 0))
+    # struct vfio_device_info {argsz, flags, num_regions, num_irqs, cap_offset, pad}
+    buf = bytearray(struct.pack("IIIIII", 24, 0, 0, 0, 0, 0))
     ioctl(dfd, VFIO_DEVICE_GET_INFO, buf)
-    argsz, flags, num_regions, num_irqs = struct.unpack("IIII", buf)
+    argsz, flags, num_regions, num_irqs, capo, pad = struct.unpack("IIIIII", buf[:24])
     print("device info: flags=%#x regions=%d irqs=%d" % (flags, num_regions, num_irqs))
 
     # struct vfio_region_info { u32 argsz, flags, index, cap_offset, u64 size, u64 offset }

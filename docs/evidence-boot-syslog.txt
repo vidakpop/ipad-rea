@@ -1,0 +1,494 @@
+[connected]
+
+
+Nov 11 22:34:16 iPad accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:16 SpringBoard[46] <Warning>: ADDING REMOTE com.apple.AppStore, <BBRemoteDataProvider 0x167a5810; com.apple.AppStore>
+Nov 11 22:34:16 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:16 medialibraryd[105] <Warning>: [com.apple.corespotlight.log.index] Finished request:<CSSearchableIndexRequest:0x14da52f0; id=1, label="fetch-last-client-state", index="Music"/0x14d9b040>, error:Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:34:16 tccd[94] <Notice>: Refusing client without bundle identifier (/System/Library/PrivateFrameworks/MusicLibrary.framework/Support/medialibraryd)
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |DAMigrationIsNeeded : DataAccess Migrator Comparing Version 13G36 With 13G36
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:16 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:16 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:17 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a3b5970 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:17 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a3fa390; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:17 medialibraryd[105] <Warning>: [com.apple.corespotlight.log.index] Finished request:<CSSearchableIndexRequest:0x14e98f80; id=2, label="fetch-last-client-state", index="Videos"/0x14e98ce0>, error:Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:34:17 tccd[94] <Notice>: Refusing client without bundle identifier (/System/Library/PrivateFrameworks/MusicLibrary.framework/Support/medialibraryd)
+Nov 11 22:34:17 medialibraryd[105] <Warning>: [com.apple.corespotlight.log.index] Finished request:<CSSearchableIndexRequest:0x14e995e0; id=3, label="fetch-last-client-state", index="Music"/0x14e993b0>, error:Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:34:17 tccd[94] <Notice>: Refusing client without bundle identifier (/System/Library/PrivateFrameworks/MusicLibrary.framework/Support/medialibraryd)
+Nov 11 22:34:17 medialibraryd[105] <Warning>: [com.apple.corespotlight.log.index] Finished request:<CSSearchableIndexRequest:0x14e99bc0; id=4, label="fetch-last-client-state", index="Videos"/0x14e99f80>, error:Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:34:17 akd[109] <Warning>: -[AKAuthenticationUILiaison _showAlertForSettingsLoginWithContext:client:needFullUI:completion:] Client findmydeviced requested authentication (via com.apple.Accounts).
+Nov 11 22:34:17 accountsd[89] <Notice>: LogOther <t:0x175a2720> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:17 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:17 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:17 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:17 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x16709c00 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:17 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a3ea860; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:18 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:18 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:18 UserEventAgent[23] <Notice>: (Error) MC: Failed to change ownership of file at path /private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log. Error: Error Domain=MCInternalErrorDomain Code=0 "Failed to change ownership of file “/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log” to owner “mobile” and group “mobile”" UserInfo={NSUnderlyingError=0x17e433c0 {Error Domain=NSCocoaErrorDomain Code=4 "The file “HealthKit.log” doesn’t exist." UserInfo={NSFilePath=/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log, NSUnderlyingError=0x17e702f0 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}}, NSLocalizedDescription=Failed to change ownership of file “/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log” to owner “mobile” and group “mobile”}
+Nov 11 22:34:18 accountsd[89] <Notice>: LogOther <t:0x176ba100> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:18 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:18 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:18 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:18 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x16709c00 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:18 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a3243f0; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:18 akd[109] <Warning>: -[AKAuthenticationUILiaison _showAlertForSettingsLoginWithContext:client:needFullUI:completion:] Client findmydeviced requested authentication (via com.apple.Accounts).
+Nov 11 22:34:18 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:18 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:18 accountsd[89] <Notice>: LogOther <t:0x1768a990> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:18 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:18 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:19 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a3c1830 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:19 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a329060; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:19 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:19 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:19 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:19 SpringBoard[46] <Warning>: [MPUSystemMediaControls] Disabling lock screen media controls updates for screen turning off.
+Nov 11 22:34:19 backboardd[58] <Notice>: [HID] [MT] MTSimpleHIDManager::setPropertyInternal detection mode: 5->255 
+Nov 11 22:34:20 fileproviderd[47] <Notice>: (Note ) FileProvider: /System/Library/PrivateFrameworks/FileProvider.framework/Support/fileproviderd starting.
+Nov 11 22:34:20 UserEventAgent[23] <Notice>: (Error) MC: Failed to change ownership of file at path /private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log. Error: Error Domain=MCInternalErrorDomain Code=0 "Failed to change ownership of file “/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log” to owner “mobile” and group “mobile”" UserInfo={NSUnderlyingError=0x17e62df0 {Error Domain=NSCocoaErrorDomain Code=4 "The file “Wallet.log” doesn’t exist." UserInfo={NSFilePath=/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log, NSUnderlyingError=0x17e32750 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}}, NSLocalizedDescription=Failed to change ownership of file “/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log” to owner “mobile” and group “mobile”}
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: Starting the server: keepAlive = DISABLED
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: *********** Beginning XPC transaction : SBMinimumLaunchTransaction ***********
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: Notifying observers of start
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: Initializing Timers Manager
+Nov 11 22:34:20 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:20 UserEventAgent[23] <Notice>: (Error) MC: Failed to change ownership of directory contents at /private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs. Errors: (
+	    "Error Domain=MCInternalErrorDomain Code=0 \"Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Accounts/cdp.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d\" UserInfo={NSUnderlyingError=0x17d97f30 {Error Domain=NSCocoaErrorDomain Code=4 \"The file \U201ccdp.log\U201d doesn\U2019t exist.\" UserInfo={NSFilePath=/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Accounts/cdp.log, NSUnderlyingError=0x17d9b7f0 {Error Domain=NSPOSIXErrorDomain Code=2 \"No such file or directory\"}}}, NSLocalizedDescription=Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Accounts/cdp.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d}",
+	    "Error Domain=MCInternalErrorDomain Code=0 \"Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d\" UserInfo={NSUnderlyingError=0x17e433c0 {Error Domain=NSCocoaErrorDomain Code=4 \"The file \U201cHealthKit.log\U201d doesn\U2019t exist.\" UserInfo={NSFilePath=/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log, NSUnderlyingError=0x17e702f0 {Error Domain=NSPOSIXErrorDomain Code=2 \"No such file or directory\"}}}, NSLocalizedDescription=Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/HealthKit/HealthKit.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d}",
+	    "Error Domain=MCInternalErrorDomain Code=0 \"Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d\" UserInfo={NSUnderlyingError=0x17e62df0 {Error Domain=NSCocoaErrorDomain Code=4 \"The file \U201cWallet.log\U201d doesn\U2019t exist.\" UserInfo={NSFilePath=/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log, NSUnderlyingError=0x17e32750 {Error Domain=NSPOSIXErrorDomain Code=2 \"No such file or directory\"}}}, NSLocalizedDescription=Failed to change ownership of file \U201c/private/var/mobile/Library/Logs/CrashReporter/DiagnosticLogs/Wallet/Wallet.log\U201d to owner \U201cmobile\U201d and group \U201cmobile\U201d}"
+	)
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: Behavior bundle support is not present
+Nov 11 22:34:20 softwarebehaviorservicesd[63] <Warning>: Behavior bundle is not supported, not starting the update check timer
+Nov 11 22:34:20 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:20 SpringBoard[46] <Warning>: ADDING REMOTE com.apple.tips, <BBRemoteDataProvider 0x1658cc90; com.apple.tips>
+Nov 11 22:34:20 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:20 OTACrashCopier[38] <Notice>: (Warn ) <OTACrashCopierController.m -[OTACrashCopierController initWithConditionMonitor:]:125> Device needs unlock after boot before scheduling log submission.
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 3c3e7000 : Disabling unmounting when resizing.
+Nov 11 22:34:21 SpringBoard[46] <Warning>: ADDING REMOTE com.apple.family, <BBRemoteDataProvider 0x1a319810; com.apple.family>
+Nov 11 22:34:21 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : could not deserialize CommandParameters
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : Cleaning up unused prepared updates
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : entering adjust_partition_preflight
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : partition:2 requiredSize=0
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : update partition does not exist
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : entering maximize_data_partition
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : entering adjust_partition_preflight
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : partition:1 requiredSize=2251799813685248
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : maximizing data partition to 13871341567 bytes
+Nov 11 22:34:21 fud[50] <Notice>: Initializing fud...
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : entering adjust_partition_preflight
+Nov 11 22:34:21 webbookmarksd[122] <Warning>: Failed to open bookmarks sync lock file at: /var/mobile/Library/Safari/com.apple.Bookmarks.lock
+Nov 11 22:34:21 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:21 installd[41] <Notice>: 0x3c3e7000 main: Reboot detected
+Nov 11 22:34:21 webbookmarksd[122] <Warning>: Could not open bookmarks database: Error Domain=com.apple.WebBookmarks.SQLiteError Code=23 "authorization denied" UserInfo={NSLocalizedDescription=authorization denied}
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : partition:1 requiredSize=1693279
+Nov 11 22:34:21 com.apple.MobileSoftwareUpdate.CleanupPreparePathService[133] <Notice>: 1f103000 : no change in size
+Nov 11 22:34:21 installd[41] <Notice>: 0x3c3e7000 is_build_upgrade: Current build version (13G36 / (null)) equal to last version recorded (13G36 / (null)); skipping upgrade
+Nov 11 22:34:21 installd[41] <Notice>: 0x3c3e7000 __47-[MIDeveloperDiskImageTracker checkMountPoint:]_block_invoke: /Developer/Applications is not present now or before
+Nov 11 22:34:22 fud[50] <Error>: No need to create item
+Nov 11 22:34:22 fud[50] <Error>: No need to create item
+Nov 11 22:34:22 fud[50] <Notice>: shouldDefaultModalClientBeEnabled() - 1
+Nov 11 22:34:22 fud[50] <Notice>: Successfully registered client 'com.apple.fud.defaultmodalclient' for identifier 'Modal UI'
+Nov 11 22:34:22 aggregated[35] <Warning>: Next ADDaily run scheduled in 04:33:20 at 2026-11-12 00:07:42 +0000
+Nov 11 22:34:22 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:22 SpringBoard[46] <Warning>: ADDING REMOTE com.apple.DuetHeuristic-BM, <BBRemoteDataProvider 0x16761090; com.apple.DuetHeuristic-BM>
+Nov 11 22:34:22 backupd[61] <Warning>: ERROR: No CK backups available in lockdown, fetching from cloudkit
+Nov 11 22:34:23 routined[36] <Notice>: 816118463.003929 (11/11/2026, 10:34:23 PM EAT), [METRIC]: Failed metric submission because Diagnostics and Usage is disabled.
+Nov 11 22:34:23 geod[112] <Notice>: 2026-11-11 22:34:23.364, 112, 15f4ac20, [NetworkDefaults]: Error updating network defaults: Error Domain=NSURLErrorDomain Code=-1009 "The Internet connection appears to be offline." UserInfo={NSErrorFailingURLStringKey=https://configuration.apple.com/configurations/pep/config/geo/networkDefaults-ios-9.0.plist, _kCFStreamErrorCodeKey=8, NSErrorFailingURLKey=https://configuration.apple.com/configurations/pep/config/geo/networkDefaults-ios-9.0.plist, NSLocalizedDescription=The Internet connection appears to be offline., _kCFStreamErrorDomainKey=12, NSUnderlyingError=0x15f4a9c0 {Error Domain=kCFErrorDomainCFNetwork Code=-1009 "(null)" UserInfo={_kCFStreamErrorDomainKey=12, _kCFStreamErrorCodeKey=8}}}
+Nov 11 22:34:24 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:24 routined[36] <Warning>: CarKit Service Error: Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.carkit.service was invalidated." UserInfo={NSDebugDescription=The connection to service named com.apple.carkit.service was invalidated.}
+Nov 11 22:34:24 SpringBoard[46] <Warning>: ADDING REMOTE com.apple.CoreRoutine, <BBRemoteDataProvider 0x1a439a40; com.apple.CoreRoutine>
+Nov 11 22:34:25 routined[36] <Warning>: BTM: attaching to BTServer
+Nov 11 22:34:26 accountsd[89] <Notice>: LogOther <t:0x175a3b40> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:26 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:26 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:26 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:26 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a362b30 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:26 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x165b0060; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:26 akd[109] <Warning>: -[AKAuthenticationUILiaison _showAlertForSettingsLoginWithContext:client:needFullUI:completion:] Client aosnotifyd requested authentication (via com.apple.Accounts).
+Nov 11 22:34:27 accountsd[89] <Notice>: LogOther <t:0x1768a990> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:27 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:27 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:27 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a343fb0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:27 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a38d520; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:27 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:27 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:27 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:27 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:27 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:27 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:27 ReportCrash[135] <Error>: assertion failed: 13G36: libsystem_trace.dylib + 15927 [E82A6F2D-873A-39AD-8014-EDEB52248157]: 0x0
+Nov 11 22:34:27 ReportCrash[135] <Warning>: os_activity_diagnostic_for_pid() failed!
+Nov 11 22:34:27 Unknown[135] <Error>: 
+Nov 11 22:34:27 ReportCrash[135] <Notice>: Formulating report for process[111] mobileassetd
+Nov 11 22:34:27 ReportCrash[135] <Warning>: Failed while requesting activity/breadcrumb diagnostics
+Nov 11 22:34:27 accountsd[89] <Notice>: LogOther <t:0x175670f0> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:27 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:27 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:28 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:28 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a3d5bc0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:28 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x16742f10; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:28 akd[109] <Warning>: -[AKAuthenticationUILiaison _showAlertForSettingsLoginWithContext:client:needFullUI:completion:] Client aosnotifyd requested authentication (via com.apple.Accounts).
+Nov 11 22:34:28 accountsd[89] <Notice>: LogOther <t:0x175670f0> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:28 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:28 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:28 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a44fcb0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:28 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a4b6b70; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:28 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:28 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:28 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:28 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:28 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:29 accountsd[89] <Notice>: LogOther <t:0x175a2720> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:29 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:29 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:29 ReportCrash[135] <Error>: assertion failed: 13G36: libsystem_trace.dylib + 15927 [E82A6F2D-873A-39AD-8014-EDEB52248157]: 0x0
+Nov 11 22:34:29 Unknown[135] <Error>: 
+Nov 11 22:34:29 ReportCrash[135] <Warning>: os_activity_diagnostic_for_pid() failed!
+Nov 11 22:34:29 ReportCrash[135] <Notice>: Formulating report for process[124] softwareupdateservicesd
+Nov 11 22:34:29 ReportCrash[135] <Warning>: Failed while requesting activity/breadcrumb diagnostics
+Nov 11 22:34:29 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a3c72e0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:29 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a34f7b0; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:29 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:30 akd[109] <Warning>: -[AKAuthenticationUILiaison _showAlertForSettingsLoginWithContext:client:needFullUI:completion:] Client aosnotifyd requested authentication (via com.apple.Accounts).
+Nov 11 22:34:30 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:30 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:30 accountsd[89] <Notice>: LogOther <t:0x1758f640> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:34:30 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:30 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:34:30 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:34:30 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:34:31 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Failed to read application shortcuts for bundleID: com.apple.mobilemail from URL: file:///var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist. Error: Error Domain=NSCocoaErrorDomain Code=257 "The file “com.apple.mobilemail.plist” couldn’t be opened because you don’t have permission to view it." UserInfo={NSFilePath=/var/mobile/Library/SpringBoard/ApplicationShortcuts/com.apple.mobilemail.plist, NSUnderlyingError=0x1a4277e0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+Nov 11 22:34:31 SpringBoard[46] <Warning>: <SBApplicationShortcutStore: 0x165003e0; bundleIdentifier: com.apple.mobilemail>: Ignoring request to save shortcut items because existing shortcuts could not be read from disk: (
+	    "<SBSApplicationShortcutItem: 0x1a4b1d00; type: com.apple.mobilemail.MFMailAddAccountAppShortcut, title: Add Account>"
+	)
+Nov 11 22:34:31 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:31 dataaccessd[129] <Notice>: 0x15675ba0|DA|Note |Can't start yet, device is still locked
+Nov 11 22:34:31 softwarebehaviorservicesd[63] <Warning>: *********** Ended XPC transaction : SBMinimumLaunchTransaction ***********
+Nov 11 22:34:31 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:32 backupd[61] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:34:43 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:43 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:52 fud[50] <Notice>: Nothing left to do, exiting.
+Nov 11 22:34:52 fud[50] <Notice>: Successfully serialized to disk
+Nov 11 22:34:55 wifid[69] <Error>: WiFi:[816118495.866415]: Error setting locale -536870201
+Nov 11 22:34:59 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:34:59 timed[39] <Notice>: (Note ) CoreTime: Received source available from "Location"
+Nov 11 22:35:50 wifid[69] <Error>: WiFi:[816118550.342981]: -[WiFiManagerCoreLocationWrapper locationManager:didFailWithError:]: Error: Error Domain=kCLErrorDomain Code=0 "(null)"
+Nov 11 22:35:50 wifid[69] <Error>: WiFi:[816118550.346329]: -[WiFiManagerCoreLocationWrapper locationManager:didFailWithError:]: Error: Error Domain=kCLErrorDomain Code=0 "(null)"
+Nov 11 22:35:51 locationd[64] <Notice>: NETWORK: requery, 0, 0, 0, 0, 11, items, fQueryRetries, 0, fLastRetryTimestamp, 0.0
+Nov 11 22:36:02 timed[39] <Notice>: (Note ) CoreTime: Received source available from "Location"
+Nov 11 22:36:17 syncdefaultsd[131] <Notice>: (Note ) marked "com.me.keyvalueservice" topic as "ignored" on <APSConnection: 0x15d18980>
+Nov 11 22:36:24 kernel[0] <Notice>: Loading diags data region 0
+Nov 11 22:36:24 kernel[0] <Notice>: Loading diags data region 1
+Nov 11 22:36:24 kernel[0] <Notice>: Loading diags data region 2
+Nov 11 22:36:24 kernel[0] <Notice>: Failed to diags data region 2.
+Nov 11 22:36:24 lockdownd[30] <Error>: libMobileGestalt MGIOKitHelper.m:225: Failed to retrieve data NkQOJZ1xdFk5SV55PFKlIg:XEp4h49dagkYL6YrtjW1Kw
+Nov 11 22:36:24 mobileactivationd[85] <Notice>: 0x1f081000 MA: -[MobileActivationDaemon createActivationInfoWithCompletionBlock:]: Activation info creation requested by lockdownd<30>
+Nov 11 22:36:24 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:60: _CTServerConnectionCopyMobileEquipmentInfo: CommCenter error: 1:45 (Operation not supported)
+Nov 11 22:36:24 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:189: No CT mobile equipment info dictionary while fetching kCTMobileEquipmentInfoIMEI
+Nov 11 22:36:24 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:60: _CTServerConnectionCopyMobileEquipmentInfo: CommCenter error: 1:45 (Operation not supported)
+Nov 11 22:36:24 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:189: No CT mobile equipment info dictionary while fetching kCTMobileEquipmentInfoMEID
+Nov 11 22:36:27 mobileactivationd[85] <Notice>: 0x1f081000 MA: -[MobileActivationDaemon handleActivationInfo:withCompletionBlock:]: Activation requested by lockdownd<30>
+Nov 11 22:36:27 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:60: _CTServerConnectionCopyMobileEquipmentInfo: CommCenter error: 1:45 (Operation not supported)
+Nov 11 22:36:27 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:189: No CT mobile equipment info dictionary while fetching kCTMobileEquipmentInfoMEID
+Nov 11 22:36:27 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:60: _CTServerConnectionCopyMobileEquipmentInfo: CommCenter error: 1:45 (Operation not supported)
+Nov 11 22:36:27 mobileactivationd[85] <Error>: libMobileGestalt MGBasebandSupport.c:189: No CT mobile equipment info dictionary while fetching kCTMobileEquipmentInfoIMEI
+Nov 11 22:36:28 SpringBoard[46] <Warning>: lockdown says the device is: [FactoryActivated], state is 7
+Nov 11 22:36:28 Setup[123] <Error>: WiFi:[816118588.121386]: __WiFiSecurityRemovePassword:[Apple Store] Error result -25300 
+Nov 11 22:36:28 Setup[123] <Error>: 
+Nov 11 22:36:28 wifid[69] <Error>: WiFi:[816118588.122638]: SCPreferencesLock() Lock already held
+Nov 11 22:36:28 SpringBoard[46] <Warning>: lockdown says the device is: [FactoryActivated], state is 7
+Nov 11 22:36:28 Setup[123] <Error>: WiFi:[816118588.159082]: __WiFiSecurityRemovePassword:[Apple Demo] Error result -25300 
+Nov 11 22:36:28 Setup[123] <Error>: 
+Nov 11 22:36:28 wifid[69] <Error>: WiFi:[816118588.164312]: SCPreferencesLock() Lock already held
+Nov 11 22:36:28 SpringBoard[46] <Warning>: Application 'UIKitApplication:com.apple.purplebuddy[0xbf79]' exited voluntarily.
+Nov 11 22:36:28 UserEventAgent[23] <Warning>: 4139351758: id=com.apple.purplebuddy pid=123, state=0
+Nov 11 22:36:28 SpringBoard[46] <Warning>: _UIGraphicsDrawIntoImageContextWithOptions: cannot draw into NULL context
+Nov 11 22:36:28 SpringBoard[46] <Error>: libMobileGestalt MobileGestalt.c:849: FMFAllowed is static and will never generate a notification
+Nov 11 22:36:28 SpringBoard[46] <Warning>: -canOpenURL: failed for URL: "twc://now" - error: "(null)"
+Nov 11 22:36:28 SpringBoard[46] <Warning>: -canOpenURL: failed for URL: "twcweather://now" - error: "(null)"
+Nov 11 22:37:50 wifid[69] <Error>: WiFi:[816118670.531789]: -[WiFiManagerCoreLocationWrapper locationManager:didFailWithError:]: Error: Error Domain=kCLErrorDomain Code=0 "(null)"
+Nov 11 22:37:51 locationd[64] <Notice>: NETWORK: requery, 0, 0, 0, 0, 12, items, fQueryRetries, 0, fLastRetryTimestamp, 816118551.3
+Nov 11 22:37:54 kernel[0] <Notice>: Loading diags data region 2
+Nov 11 22:37:54 kernel[0] <Notice>: Failed to diags data region 2.
+Nov 11 22:37:54 lockdownd[30] <Error>: libMobileGestalt MGIOKitHelper.m:225: Failed to retrieve data NkQOJZ1xdFk5SV55PFKlIg:XEp4h49dagkYL6YrtjW1Kw
+Nov 11 22:37:54 kernel[0] <Notice>: Loading diags data region 2
+Nov 11 22:37:54 kernel[0] <Notice>: Failed to diags data region 2.
+Nov 11 22:37:54 lockdownd[30] <Error>: libMobileGestalt MGIOKitHelper.m:225: Failed to retrieve data NkQOJZ1xdFk5SV55PFKlIg:XEp4h49dagkYL6YrtjW1Kw
+Nov 11 22:39:09 kernel[0] <Notice>: IOHIDSystem posted stackshot event 0x00000006
+Nov 11 22:39:09 SpringBoard[46] <Warning>: [MPUSystemMediaControls] Enabling lock screen media controls updates for screen turning on.
+Nov 11 22:39:09 backboardd[58] <Notice>: [HID] [MT] MTSimpleHIDManager::setPropertyInternal detection mode: 255->5 (deferring until bootloaded)
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: Device LOCKED!
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: started by launchd
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: MIG server initialized.
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: XPC server initialized.
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: Apple Internal: NO
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: request: sysdiagnose (stackshot only) keychord: Menu + Volume
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: [Warning] Bad response (null) from daemon for setup info
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: [Warning] Services all disappeared, removing all dependent devices
+Nov 11 22:39:09 SpringBoard[46] <Warning>: [MPUSystemMediaControls] Updating supported commands for now playing application.
+Nov 11 22:39:09 backboardd[58] <Notice>: [HID] [MT] MTSimpleHIDManager::deviceDidBootload device bootloaded
+Nov 11 22:39:09 backboardd[58] <Notice>: [HID] [MT] MTSimpleHIDManager::setPropertyInternal detection mode: 5->5 
+Nov 11 22:39:09 ReportCrash[141] <Warning>: Report of type '288(288)' not saved because the limit of 100 logs has been reached
+Nov 11 22:39:09 sysdiagnose[140] <Warning>: sysdiagnose (stackshot only) complete
+Nov 11 22:39:12 kernel[0] <Notice>: AppleKeyStore: operation failed (pid: 46 sel: 26 ret: <ptr> '-536870174')
+Nov 11 22:39:12 kernel[0] <Notice>: AppleKeyStore::device_state_transition: Device UnLock call, lockstate=1, transientCnt=0
+Nov 11 22:39:13 kernel[0] <Notice>: AppleKeyStore:Sending lock change 0 for handle 0
+Nov 11 22:39:13 kernel[0] <Notice>: AppleKeyStore::device_state_transition: Device UnLocked, lockstate=0
+Nov 11 22:39:13 UserEventAgent[23] <Error>:  LockStateNotifier aksNotificationCallback posting notification: com.apple.mobile.keybagd.first_unlock
+Nov 11 22:39:13 UserEventAgent[23] <Error>:  LockStateNotifier aksNotificationCallback posting notification: com.apple.mobile.keybagd.lock_status
+Nov 11 22:39:13 ptpd[25] <Notice>: Photo library availability changed
+Nov 11 22:39:13 backboardd[58] <Notice>: [HID] [MT] MTSimpleHIDManager::setPropertyInternal detection mode: 5->0 
+Nov 11 22:39:13 imagent[32] <Warning>: [Warning] Database: __XPCIMDMessageStoreSendXPCMessage has failed 1 time(s)!
+Nov 11 22:39:13 imagent[32] <Warning>: [Warning] Database: __XPCIMDMessageStoreSendXPCMessage has failed 1 time(s)!
+Nov 11 22:39:13 UserEventAgent[23] <Notice>: (Note ) PIH: Lock status changed.
+Nov 11 22:39:13 ptpd[25] <Notice>: Photo library availability changed
+Nov 11 22:39:13 SpringBoard[46] <Notice>: 2026-11-11 22:39:13.390+0300|46|0x16554100|AlarmEngine: Protected data now available.
+Nov 11 22:39:13 MobileMail[125] <Warning>: Key bag transitioning from locked to unlocked
+Nov 11 22:39:13 SpringBoard[46] <Notice>: (Warn ) EventKitUI: EKEventDescriptionGenerator: failed to get me card.
+Nov 11 22:39:13 SpringBoard[46] <Warning>: _UIGraphicsDrawIntoImageContextWithOptions: cannot draw into NULL context
+Nov 11 22:39:13 networkd[81] <Notice>: -[NETInterfaceManager updateInterfaces] nwi_state_copy() returned NULL
+Nov 11 22:39:14 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:39:14 locationd[64] <Warning>: notify name "com.apple.locationd.DumpDiagnostics" has been registered 20 times - this may be a leak
+Nov 11 22:39:15 kernel[0] <Notice>: 000339.307316 wlan0.N[24] setASSOCIATE@13675: [wifid]: lowerAuth = AUTHTYPE_OPEN, upperAuth = AUTHTYPE_WPA2_PSK, key = CIPHER_PMK , don't disassociate    .
+Nov 11 22:39:15 kernel[0] <Notice>: 000339.346842 wlan0.N[25] resetAutoCountry@13511:EnhancedLocaleEnabled: 0, HostCountry:0, fDefaultCountryCode:XZ, fCurrentHostCountryCode:XZ
+Nov 11 22:39:15 securityd[79] <Error>:  __SOSUpdateKeyInterest_block_invoke_2 Error getting ring interests (null)
+Nov 11 22:39:15 CloudKeychainProxy[144] <Error>:  __45-[UbiqitousKVSProxy doEnsurePeerRegistration]_block_invoke <UB---e-C---> ensurePeerRegistration called, success ((null))
+Nov 11 22:39:15 MobileMail[125] <Warning>: [com.apple.corespotlight.log.index] Finished request:<CSSearchableIndexRequest:0x176e3500; id=2, label="fetch-last-client-state", index="com.apple.mobilemail.contentIndex"/0x1769d640>, error:Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:39:15 MobileMail[125] <Error>: failed to retrieve last client state: Error Domain=CSIndexErrorDomain Code=-1000 "(null)"
+Nov 11 22:39:15 syslog_relay[147] <Notice>: syslog_relay read 51 total bytes: 
+	========================
+	ASL is here to serve you
+Nov 11 22:39:15 syslog_relay[147] <Notice>: syslog_relay found the ASL prompt. Starting...
+Nov 11 22:39:17 kernel[0] <Notice>: 000339.862148 wlan0.A[26] prepareToBringUpLink@898: Delaying powersave entry in order to get an IP address
+Nov 11 22:39:17 kernel[0] <Notice>: 000339.862651 wlan0.A[27] updateLinkQualityMetrics@1991:Report LQM to User Land 50, fAverageRSSI -85
+Nov 11 22:39:17 kernel[0] <Notice>: AirPort: Link Up on en0
+Nov 11 22:39:17 kernel[0] <Notice>: Got incomplete channel sequence length 0, should be 16
+Nov 11 22:39:17 kernel[0] <Notice>: en0: BSSID changed to 60:02:92:12:f2:e4
+Nov 11 22:39:17 kernel[0] <Notice>: en0: channel changed to 48,-1
+Nov 11 22:39:17 kernel[0] <Notice>: en0::IO80211Interface::postMessage bssid changed
+Nov 11 22:39:17 kernel[0] <Notice>: en0: BSSID changed to 60:02:92:12:f2:e4
+Nov 11 22:39:17 kernel[0] <Notice>: en0: channel changed to 48,-1
+Nov 11 22:39:17 kernel[0] <Notice>: en0::IO80211Interface::postMessage bssid changed
+Nov 11 22:39:17 kernel[0] <Notice>: 000339.898690 wlan0.N[28] handleSupplicantEvent@1539:status = 6 WLC_SUP_KEYED, reason = 0 Other reason, flags = 0x0, authtype = 0, addr = 00:00:48:01:2c:00
+Nov 11 22:39:15 searchd[120] <Alert>: (Error) IndexGeneral in si_playBackMobileRecords:2343: played back 1 records
+Nov 11 22:39:15 wifid[69] <Error>: WiFi:[816118755.765820]: __WiFiDeviceManagerUpdateDynamicStoreNetworkEntry: dynamicStoreRef is NULL
+Nov 11 22:39:17 kernel[0] <Notice>: 000339.957147 wlan0.N[29] startRoamScan@5727:5727 Delaying RoamScan; because  Join Mgr Busy 0 isWaitingforIP 1 
+Nov 11 22:39:15 wifid[69] <Error>: WiFi:[816118755.800417]: __WiFiDeviceVirtualInterfaceGet: interfaceName is NULL
+Nov 11 22:39:15 wifid[69] <Error>: WiFi:[816118755.800750]: Unknown interface (null)
+Nov 11 22:39:17 kernel[0] <Notice>: 000339.980232 wlan0.A[30] setProperties@5153:Active during sleep supported (true)
+Nov 11 22:39:15 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:15 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:15 searchd[120] <Alert>: (Error) IndexGeneral in si_playBackMobileRecords:2343: played back 1 records
+Nov 11 22:39:15 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:15 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:16 tccd[94] <Notice>: Refusing client without bundle identifier (/usr/libexec/routined)
+Nov 11 22:39:16 SpringBoard[46] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 UserEventAgent[23] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 imagent[32] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 locationd[64] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 identityservicesd[45] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 apsd[82] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 MobileMail[125] <Warning>: WiFi is associated YES
+Nov 11 22:39:16 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:16 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:16 symptomsd[90] <Warning>: opening backingstore /var/networkd/netusage.sqlite, read/write
+Nov 11 22:39:16 searchd[120] <Alert>: (Error) IndexGeneral in si_playBackMobileRecords:2343: played back 1 records
+Nov 11 22:39:16 backupd[145] <Warning>: ERROR: No CK backups available in lockdown, fetching from cloudkit
+Nov 11 22:39:16 CircleJoinRequested[142] <Warning>: notifyd event: <dictionary: 0x15678800> { count = 3, contents =
+		"XPCEventName" => <string: 0x15678920> { length = 37, contents = "com.apple.mobile.keybagd.first_unlock" }
+		"_State" => <uint64: 0x15678940>: 0
+		"Notification" => <string: 0x15678990> { length = 37, contents = "com.apple.mobile.keybagd.first_unlock" }
+	}
+	Alert (0x0) for applicants !KO
+	debugState: processEvents A
+Nov 11 22:39:17 profiled[114] <Notice>: (Error) MC: Fingerprint unlock state is not available after first unlock. Ignoring.
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: CircleStatus 0 -> 0{1} (s=0x156780f0)
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: Time until pendingApplicationReminder (4001-01-01 00:00:00 +0000) 62297785243.100121
+Nov 11 22:39:17 aggregated[149] <Warning>: Looks like aggd crashed. Not counting as reboot.
+Nov 11 22:39:17 aggregated[149] <Warning>: Didn't log uptime data as aggd might have crashed or this is a first boot.
+Nov 11 22:39:17 aggregated[149] <Warning>: BTA job already scheduled for ADDaily
+Nov 11 22:39:17 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:39:17 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:17 mDNSResponder[31] <Error>: mDNSPlatformSetDNSConfig: Error: dns_configuration_copy returned NULL
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: ACC token 27, status 0
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: No applicants
+Nov 11 22:39:17 tccd[94] <Notice>: Refusing client without bundle identifier (/usr/libexec/routined)
+Nov 11 22:39:17 pkd[121] <Warning>: assigning plug-in com.apple.ServerDocuments.ServerFileProvider(1.0) to plugin sandbox
+Nov 11 22:39:17 pkd[121] <Warning>: enabling pid=47 for plug-in com.apple.ServerDocuments.ServerFileProvider(1.0) 6271A988-E90D-4E32-B198-C51B7833CF59 /Applications/ServerDocuments.app/PlugIns/ServerFileProvider.appex
+Nov 11 22:39:17 kernel[0] <Notice>: xpcproxy[150] Container: /private/var/mobile/Containers/Data/PluginKitPlugin/407749F6-C805-42EA-822F-1EAE2FA74D1B (sandbox)
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: CircleStatus 0 -> 0{1} (s=0x156780f0)
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: Time until pendingApplicationReminder (4001-01-01 00:00:00 +0000) 62297785242.378723
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: ACC token 29, status 0
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: No applicants
+Nov 11 22:39:17 CircleJoinRequested[142] <Warning>: Done
+Nov 11 22:39:17 networkd[81] <Notice>: -[NETInterfaceManager updateInterfaces] nwi_state_copy() returned NULL
+Nov 11 22:39:18 networkd[81] <Notice>: -[NETInterfaceManager updateInterfaces] nwi_state_copy() returned NULL
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.355449 wlan0.N[31] setPOWER_PROFILE@15084: Setting Power Profile to kA11PowerProfileDefault. fMaxWoWSleepTime = 930
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.355493 wlan0.N[32] setScanHomeAwayTime@1541:Setting Scan Home away time to 100
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.355538 wlan0.N[33] setPowerProfile@1579:Power profile kA11PowerProfileDefault. Setting default DFRTS
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.361356 wlan0.N[34] handleIPv4AddressNotificationGated@6216: Local IPv4  address 192.168.0.14
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.362213 wlan0.A[35] receivedIPv4Address@1531: Received address 192.168.0.14, entering powersave mode 2
+Nov 11 22:39:18 kernel[0] <Notice>: 000342.362246 wlan0.N[36] startRoamScan@5754:5754 starting RoamScan; MultiAPEnv:0 isdualBand:1 isOn5G:1
+Nov 11 22:39:18 SpringBoard[46] <Notice>: (Warn ) log.facility.assistant: Offline language fetch failed: Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.assistant.dictation was invalidated." UserInfo={NSDebugDescription=The connection to service named com.apple.assistant.dictation was invalidated.}
+Nov 11 22:39:18 configd[29] <Notice>: Captive: [CNInfoNetworkActive:1748] en0: SSID 'Cyberjiutsu 5G' making interface primary (protected network)
+Nov 11 22:39:18 configd[29] <Notice>: Captive: CNPluginHandler en0: Evaluating
+Nov 11 22:39:18 configd[29] <Notice>: network changed: DNS* Proxy
+Nov 11 22:39:18 configd[29] <Notice>: Captive: en0: Probing 'Cyberjiutsu 5G'
+Nov 11 22:39:18 configd[29] <Notice>: network changed: v4(en0!:192.168.0.14) DNS+ Proxy+
+Nov 11 22:39:18 cloudd[132] <Error>: Couldn't get cloudKitAuthToken from credential.  Error (null)
+Nov 11 22:39:18 nehelper[91] <Error>: Configuration for provider com.apple.NetworkExtension.NetworkServiceProxy does not exist (<__NSConcreteUUID 0x15e48ad0> FEA4EF91-5D25-452C-8050-098B341B8FDA) or is not enabled (0)
+Nov 11 22:39:18 nehelper[91] <Error>: Configuration for provider com.apple.NetworkExtension.NetworkServiceProxy does not exist (<__NSConcreteUUID 0x15e48ad0> FEA4EF91-5D25-452C-8050-098B341B8FDA) or is not enabled (0)
+Nov 11 22:39:18 nehelper[91] <Error>: Configuration for provider com.apple.NetworkExtension.NetworkServiceProxy does not exist (<__NSConcreteUUID 0x15e48ad0> FEA4EF91-5D25-452C-8050-098B341B8FDA) or is not enabled (0)
+Nov 11 22:39:18 UserEventAgent[23] <Error>: Refresh message failed
+Nov 11 22:39:18 UserEventAgent[23] <Error>: Report metrics message failed
+Nov 11 22:39:18 UserEventAgent[23] <Error>: Probe message failed
+Nov 11 22:39:18 searchd[120] <Warning>: [SLSUGGESTIONS ERROR] Missing SAP settings keys in the bag
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: [Warning] Bad response (null) from daemon for setup info
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: [Warning] Services all disappeared, removing all accounts
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: [Warning] Services all disappeared, removing all enabled accounts
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: [Warning] Services all disappeared, removing all dependent devices
+Nov 11 22:39:18 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:39:18 wifid[69] <Error>: WiFi:[816118758.937171]: Disable WoW requested by "IDSRemoteURLConn"
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: WiFi is associated YES
+Nov 11 22:39:18 IDSRemoteURLConnectionAgent[152] <Warning>: WiFi is associated YES
+Nov 11 22:39:18 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:39:19 configd[29] <Notice>: Captive: CNPluginHandler en0: Authenticated
+Nov 11 22:39:19 wifid[69] <Error>: WiFi:[816118759.039258]: Disable WoW requested by "IMRemoteURLConne"
+Nov 11 22:39:19 IMRemoteURLConnectionAgent[153] <Warning>: WiFi is associated YES
+Nov 11 22:39:19 IMRemoteURLConnectionAgent[153] <Warning>: WiFi is associated YES
+Nov 11 22:39:19 dataaccessd[129] <Notice>: 0x15675ba0|IMAP|Error|Couldn't find an imap account associated with account <DAIMAPNotesDaemonAccount: 0x156a7230>: accountID D8FEA48C-468E-4E2E-B505-438ED11C43DB persistentUUID D8FEA48C-468E-4E2E-B505-438ED11C43DB.  Parent cyberjiutsu@gmail.com (B01C5013-45AC-468E-86AE-D86ED4D638DE).  Peers (
+	    "cyberjiutsu@gmail.com (A345E408-D75A-4D13-A46C-484D2BB0E4E7)",
+	    "cyberjiutsu@gmail.com (3B1DB313-3558-45B5-85CA-5815F2F556E1)",
+	    "cyberjiutsu@gmail.com (7B594EE9-DE3A-4C02-B07F-2384F869407C)",
+	    "cyberjiutsu@gmail.com (AAF78058-93F8-49CB-9C8E-6D90AE15E201)",
+	    "cyberjiutsu@gmail.com (D8FEA48C-468E-4E2E-B505-438ED11C43DB)",
+	    "cyberjiutsu@gmail.com (4DE23883-8035-4698-AB7E-4A86C3BE18FB)",
+	    "cyberjiutsu@gmail.com (7186248C-3513-42D9-BE0D-FEBF97FC824C)"
+	).
+Nov 11 22:39:19 dataaccessd[129] <Notice>: 0x15675ba0|DA|Error|Not creating an agent for account info cyberjiutsu@gmail.com (D8FEA48C-468E-4E2E-B505-438ED11C43DB), it refused to init itself
+Nov 11 22:39:19 securityd[79] <Error>:  secTaskDiagnoseEntitlements MISSING keychain entitlements: no stored taskRef found
+Nov 11 22:39:19 securityd[79] <Error>:  secTaskDiagnoseEntitlements MISSING keychain entitlements: no stored taskRef found
+Nov 11 22:39:20 searchd[120] <Error>:  SecTrustEvaluate  [root AnchorTrusted]
+Nov 11 22:39:20 searchd[120] <Error>: tcp_connection_tls_session_error_callback_imp 5 __tcp_connection_tls_session_callback_handshake_message_block_invoke.504 error -9807
+Nov 11 22:39:20 searchd[120] <Error>: tcp_connection_get_statistics called with null connection, dumping backtrace:
+	        [armv7f] libnetcore-583.50.1
+	    0   libsystem_network.dylib             0x251c394b __nw_create_backtrace_string + 130
+	    1   libsystem_network.dylib             0x251aedfb tcp_connection_get_statistics + 122
+	    2   CFNetwork                           0x25ab5707 <redacted> + 94
+	    3   libdispatch.dylib                   0x25049823 <redacted> + 10
+	    4   libdispatch.dylib                   0x25056423 <redacted> + 1758
+	    5   libdispatch.dylib                   0x25055a61 <redacted> + 284
+	    6   libdispatch.dylib                   0x2505815d <redacted> + 396
+	    7   libdispatch.dylib                   0x25057fcd <redacted> + 96
+	    8   libsystem_pthread.dylib             0x2520db29 _pthread_wqthread + 1024
+	    9   libsystem_pthread.dylib             0x2520d718 start_wqthread + 8
+Nov 11 22:39:20 searchd[120] <Warning>: [SLSUGGESTIONS ERROR] Got bag error -9807
+Nov 11 22:39:20 locationd[64] <Notice>: NETWORK: requery, 0, 0, 0, 0, 12, items, fQueryRetries, 0, fLastRetryTimestamp, 816118671.5
+Nov 11 22:39:20 locationd[64] <Notice>: NETWORK: query, cells, 0, 0, 0, 0, wifis, 12
+Nov 11 22:39:20 mstreamd[27] <Notice>: (Note ) mstreamd: mstreamd starting up.
+Nov 11 22:39:20 networkd[81] <Error>: __57-[NETQualityManager refreshNetworkPredictionsForNetwork:]_block_invoke skipping change event because updatePredictionsForNOI returned error Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+Nov 11 22:39:20 networkd[81] <Error>: __57-[NETQualityManager refreshNetworkPredictionsForNetwork:]_block_invoke skipping change event because updatePredictionsForNOI returned error Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+Nov 11 22:39:20 networkd[81] <Error>: __57-[NETQualityManager refreshNetworkPredictionsForNetwork:]_block_invoke skipping change event because updatePredictionsForNOI returned error Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+Nov 11 22:39:20 networkd[81] <Error>: __57-[NETQualityManager refreshNetworkPredictionsForNetwork:]_block_invoke skipping change event because updatePredictionsForNOI returned error Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+Nov 11 22:39:21 com.apple.xpc.launchd[1] <Error>: assertion failed: 13G36: launchd + 85529 [083E000D-4C31-3B98-A2C4-6FADB4D1940F]: 0x3
+Nov 11 22:39:21 UserEventAgent[23] <Warning>: Tracking com.apple.ServerDocuments.ServerFileProvider (via activity)
+Nov 11 22:39:22 fileproviderd[47] <Warning>: plugin com.apple.ServerDocuments.ServerFileProvider invalidated
+Nov 11 22:39:22 mstreamd[27] <Notice>: (Note ) PS: Media stream daemon starting...
+Nov 11 22:39:22 mstreamd[27] <Warning>: [Warning] Bad response (null) from daemon for setup info
+Nov 11 22:39:23 wifid[69] <Error>: WiFi:[816118763.562962]: Attached client softwareupdatese is background application
+Nov 11 22:39:24 securityd[79] <Error>:  secTaskDiagnoseEntitlements MISSING keychain entitlements: no stored taskRef found
+Nov 11 22:39:24 securityd[79] <Error>:  secTaskDiagnoseEntitlements MISSING keychain entitlements: no stored taskRef found
+Nov 11 22:39:24 geod[112] <Error>:  SecTrustEvaluate  [root AnchorTrusted]
+Nov 11 22:39:24 identityservicesd[45] <Warning>: No identity found!
+Nov 11 22:39:24 identityservicesd[45] <Warning>: [Warning]   Identity Problem
+Nov 11 22:39:24 identityservicesd[45] <Warning>: [Warning]     Lockdown identity cert 0x0   (err: -25300)
+Nov 11 22:39:24 identityservicesd[45] <Warning>: [Warning]     APS identity cert 0x0   (err: -25300)
+Nov 11 22:39:24 identityservicesd[45] <Warning>: [Warning] Re-certifying device (in background)
+Nov 11 22:39:24 mobileactivationd[85] <Notice>: 0x1f115000 MA: -[MobileActivationDaemon recertifyDevice:WithCompletionBlock:]: Recertification (SB) requested by identityservicesd<45>
+Nov 11 22:39:24 nsurlsessiond[97] <Error>: Task 1 for client <CFString 0x15da7160 [0x3c3ee170]>{contents = "com.apple.mobileassetd"} completed with error - code: -999
+Nov 11 22:39:24 mstreamd[27] <Notice>: (Warn ) AS: <MSIOSAlbumSharingDaemon: 0x15676f30>: Push tokens not available. Prod. Waiting...
+Nov 11 22:39:24 geod[112] <Warning>: NSURLSession/NSURLConnection HTTP load failed (kCFStreamErrorDomainSSL, -9813)
+Nov 11 22:39:24 geod[112] <Notice>: 2026-11-11 22:39:24.688, 112, 15e05ce0, [CountryConfiguration]: Could not determine current country code: Error Domain=NSURLErrorDomain Code=-1202 "The certificate for this server is invalid. You might be connecting to a server that is pretending to be “gspe1-ssl.ls.apple.com” which could put your confidential information at risk." UserInfo={NSLocalizedDescription=The certificate for this server is invalid. You might be connecting to a server that is pretending to be “gspe1-ssl.ls.apple.com” which could put your confidential information at risk., NSLocalizedRecoverySuggestion=Would you like to connect to the server anyway?, _kCFStreamErrorDomainKey=3, NSUnderlyingError=0x15e04760 {Error Domain=kCFErrorDomainCFNetwork Code=-1202 "The certificate for this server is invalid. You might be connecting to a server that is pretending to be “gspe1-ssl.ls.apple.com” which could put your confidential information at risk." UserInfo={NSLocalizedDescription=The certificate for this server is invalid. You might be connecting to a server that is pretending to be “gspe1-ssl.ls.apple.com” which could put your confidential information at risk., _kCFNetworkCFStreamSSLErrorOriginalValue=-9813, _kCFStreamPropertySSLClientCertificateState=0, NSLocalizedRecoverySuggestion=Would you like to connect to the server anyway?, _kCFStreamErrorCodeKey=-9813, kCFStreamPropertySSLPeerTrust=<SecTrustRef: 0x15f4bed0>, _kCFStreamErrorDomainKey=3, kCFStreamPropertySSLPeerCertificates=<CFArray 0x1702ac10 [0x3c3ee170]>{type = immutable, count = 2, values = (
+		0 : <cert(0x15f4b3c0) s: gspe1-ssl.ls.apple.com i: Apple Public Server ECC CA 11 - G1>
+		1 : <cert(0x15f4b720) s: Apple Public Server ECC CA 11 - G1 i: COMODO ECC Certification Authority>
+	)}, NSErrorFailingURLStringKey=https://gspe1-ssl.ls.apple.com/pep/gcc, NSErrorFailingURLKey=https://gspe1-ssl.ls.apple.com/pep/gcc}}, _kCFStreamErrorCodeKey=-9813, NSErrorFailingURLStringKey=https://gspe1-ssl.ls.apple.com/pep/gcc, NSErrorPeerCertificateChainKey=<CFArray 0x1702ac10 [0x3c3ee170]>{type = immutable, count = 2, values = (
+		0 : <cert(0x15f4b3c0) s: gspe1-ssl.ls.apple.com i: Apple Public Server ECC CA 11 - G1>
+		1 : <cert(0x15f4b720) s: Apple Public Server ECC CA 11 - G1 i: COMODO ECC Certification Authority>
+	)}, NSErrorClientCertificateStateKey=0, NSURLErrorFailingURLPeerTrustErrorKey=<SecTrustRef: 0x15f4bed0>, NSErrorFailingURLKey=https://gspe1-ssl.ls.apple.com/pep/gcc}
+Nov 11 22:39:25 timed[39] <Notice>: (Note ) CoreTime: Received time 11/11/2026 19:39:24±0.04 from "NTP"
+Nov 11 22:39:25 timed[39] <Notice>: (Note ) CoreTime: Want active time in 16.90min. Need active time in 8308.56min. Remaining retry interval: 14.983333min.
+Nov 11 22:39:25 UserEventAgent[23] <Error>: validateAndAddDefaults(com.apple.timed): End Time (inf) > now (816118765.4) + BACKGROUND_TASK_AGENT_JOB_WINDOW_MAX_TIME_FROM_NOW_SEC (3024000.0) + BACKGROUND_TASK_AGENT_JOB_TIME_ERROR_MARGIN (300.0)
+Nov 11 22:39:25 timed[39] <Notice>: (Error) CoreTime: Error requesting proactive time check job
+Nov 11 22:39:25 itunesstored[93] <Warning>: iTunes Store environment is: AS00
+Nov 11 22:39:26 dataaccessd[129] <Notice>: 0x15675ba0|DA|Error|spinnerIdentifiers to be implemented by subclass
+Nov 11 22:39:26 powerd[57] <Error>: Unexpected readFromIdx -1. arrCnt=214
+Nov 11 22:39:27 dataaccessd[129] <Notice>: 0x15675ba0|CalDAV|Warn |Ignoring calendar refresh task because we have no password.
+Nov 11 22:39:27 dataaccessd[129] <Notice>: 0x15675ba0|CalDAV|Warn |CalDAV refresh task failed with error Error Domain=DAErrorDomain Code=63 "(null)"
+Nov 11 22:39:27 locationd[64] <Notice>: Potentially setting system time zone to Africa/Nairobi
+Nov 11 22:39:27 timed[39] <Notice>: (Note ) CoreTime: Current mcc: '0' simulated:'0'.
+Nov 11 22:39:27 timed[39] <Notice>: (Note ) CoreTime: Received timezone "Africa/Nairobi" from "Location" with mcc 0
+Nov 11 22:39:27 timed[39] <Notice>: (Note ) CoreTime: Not setting time zone to Africa/Nairobi from Location because time zone is unchanged
+Nov 11 22:39:27 identityservicesd[45] <Warning>: [Warning] Device re-certified: NO
+Nov 11 22:39:28 dataaccessd[129] <Notice>: 0x15675ba0|CalDAV|Warn |==== CalDAV refresh FAILED for "iCloud" (7186248C-3513-42D9-BE0D-FEBF97FC824C): Error Domain=DAErrorDomain Code=63 "(null)".
+Nov 11 22:39:28 backupd[158] <Warning>: ERROR: No CK backups available in lockdown, fetching from cloudkit
+Nov 11 22:39:29 cloudd[132] <Error>: Couldn't get cloudKitAuthToken from credential.  Error (null)
+Nov 11 22:39:29 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:39:29 mstreamd[27] <Notice>: (Error) AS: <MSIOSAlbumSharingDaemon: 0x15676f30>: Could not retrieve push token even after waiting for it.
+Nov 11 22:39:29 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:39:30 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:39:30 OTACrashCopier[143] <Warning>: Scheduling on exit
+Nov 11 22:39:30 dataaccessd[129] <Notice>: 0x15675ba0|DA|Error|spinnerIdentifiers to be implemented by subclass
+Nov 11 22:39:30 accountsd[89] <Notice>: LogOther <t:0x175806d0> Could not create child mail account for account B01C5013-45AC-468E-86AE-D86ED4D638DE: Error Domain=CastleIMAPErrorDomain Code=3 "(null)"
+Nov 11 22:39:30 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified
+Nov 11 22:39:30 accountsd[89] <Error>: PCSAccountNotificationPlugin: Modified Error! iCloud account with no password?
+Nov 11 22:39:31 accountsd[89] <Warning>: AIDA Notification plugin running
+Nov 11 22:39:31 cloudd[132] <Error>: Syntax error in request
+Nov 11 22:39:31 backupd[158] <Warning>: ERROR: Error fetching record zone <CKRecordZoneID: 0x16591990; mbksync:__defaultOwner__>: <CKError 0x165b3a40: "Invalid Arguments" (12/2006); server message = "No operations present in request"; uuid = 753F19C0-1317-4AE7-8A7A-D21A30E1BF70; container ID = "com.apple.backup.ios">
+Nov 11 22:39:31 dataaccessd[129] <Notice>: 0x15675ba0|IMAP|Error|Couldn't find an imap account associated with account <DAIMAPNotesDaemonAccount: 0x15599450>: accountID D8FEA48C-468E-4E2E-B505-438ED11C43DB persistentUUID D8FEA48C-468E-4E2E-B505-438ED11C43DB.  Parent cyberjiutsu@gmail.com (B01C5013-45AC-468E-86AE-D86ED4D638DE).  Peers (
+	    "cyberjiutsu@gmail.com (A345E408-D75A-4D13-A46C-484D2BB0E4E7)",
+	    "cyberjiutsu@gmail.com (3B1DB313-3558-45B5-85CA-5815F2F556E1)",
+	    "cyberjiutsu@gmail.com (7B594EE9-DE3A-4C02-B07F-2384F869407C)",
+	    "cyberjiutsu@gmail.com (AAF78058-93F8-49CB-9C8E-6D90AE15E201)",
+	    "cyberjiutsu@gmail.com (D8FEA48C-468E-4E2E-B505-438ED11C43DB)",
+	    "cyberjiutsu@gmail.com (4DE23883-8035-4698-AB7E-4A86C3BE18FB)",
+	    "cyberjiutsu@gmail.com (7186248C-3513-42D9-BE0D-FEBF97FC824C)"
+	).
+Nov 11 22:39:31 dataaccessd[129] <Notice>: 0x15675ba0|DA|Error|Not creating an agent for account info cyberjiutsu@gmail.com (D8FEA48C-468E-4E2E-B505-438ED11C43DB), it refused to init itself
+Nov 11 22:39:32 backupd[158] <Warning>: INFO: Account changed (enabled=1, accountID=22785038708)
+Nov 11 22:39:32 backupd[158] <Warning>: ERROR: No CK backups available, fetching from MBS cache
+Nov 11 22:39:32 dataaccessd[129] <Error>: Bogus event on event stream listener.
+Nov 11 22:39:32 dataaccessd[129] <Notice>: 0x15675ba0|DA|Error|spinnerIdentifiers to be implemented by subclass
+Nov 11 22:39:32 syncdefaultsd[151] <Notice>: (Note ) Fixing push token
+Nov 11 22:39:32 syncdefaultsd[151] <Notice>: (Note ) marked "com.me.keyvalueservice" topic as "enabled" on <APSConnection: 0x14e74570>
+Nov 11 22:39:32 syncdefaultsd[151] <Notice>: (Note ) Fixing push token
+Nov 11 22:39:32 dataaccessd[129] <Notice>: DiskCookieStorage changing policy from 2 to 0, cookie file: file:///var/mobile/Library/Cookies/com.apple.dataaccessd.3B1DB313-3558-45B5-85CA-5815F2F556E1.binarycookies
+Nov 11 22:39:32 MobileGestaltHelper[84] <Error>: libMobileGestalt MobileGestalt.c:281: server_access_check denied access to question UniqueDeviceID for pid 129
+Nov 11 22:39:32 dataaccessd[129] <Error>: libMobileGestalt MobileGestaltSupport.m:151: pid 129 (dataaccessd) does not have sandbox access for re6Zb+zwFKJNlkQTUeT+/w and IS NOT appropriately entitled
+Nov 11 22:39:32 dataaccessd[129] <Error>: libMobileGestalt MobileGestalt.c:542: no access to UniqueDeviceID (see <rdar://problem/11744455>)
+Nov 11 22:39:32 syncdefaultsd[151] <Notice>: (Note ) Fixing push token
+Nov 11 22:39:32 syncdefaultsd[151] <Notice>: (Note ) Fixing push token

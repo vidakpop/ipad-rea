@@ -32,6 +32,13 @@ The chip has internal state HCRST/D3hot/FLR/CRCR-DCBAAP-CONFIG-writes **cannot a
 - Doorbell works w/ or w/o MSI armed; IMAN.IP gets set by the chip (legacy-ish pending).
 
 ## Next moves (ordered)
+0. **THE remove+rescan gambit (NEW, top priority)**: `echo 1 > .../0000:04:00.4/remove; echo 1 > .../rescan`
+   refreshed the function at PCI level and the kernel's probe then initialized it INSTANTLY.
+   Conjecture: each PCI enumeration opens a fresh "init window"; the kernel driver has been
+   consuming it every time. NEXT SESSION: keep 04:00.4 DRIVERLESS right after remove+rescan
+   (no xhci_hcd bind!), load xdcdrv, bring up rings — our CRCR/DCBAAP/CONFIG writes may be
+   accepted cleanly for the first time. (System restored to normal at session end: both
+   controllers on xhci_hcd, iPad visible in DFU on bus 3.)
 1. **xHCI Save/Restore state attack**: USBCMD.CSS (bit 8) saves the ENTIRE internal state into
    the scratchpad buffers (well-defined format!) → READ the save image from our SP pages →
    DISCOVER the frozen internals (cmd-ring ptr, slot bitmap, MaxSlotsEn) → patch → USBCMD.CRS

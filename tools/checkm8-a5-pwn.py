@@ -611,20 +611,30 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     # An abandoned mid-serve transfer leaves the device waiting to serve more
     # IN packets and the next SETUP hangs (set-state timeout on --no-reentry).
     # The sketch's 0x81 dispatches one IN token and moves on, whatever the
-    # device does.  On a NAK'd pool the transfer cannot complete; abandon it
-    # briefly so stage 2 can begin on the same handle.
+    # device does.  On a healthy pool the transfer completes (~800us) and the
+    # pipe is cleanly closed; on a NAK'd pool it cannot complete, so fall
+    # back to a brief abandon and let stage 2 try regardless.
     try:
         rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                                 (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
-                                0x81, b'', abandon=True, cancel_at=0,
-                                abandon_timeout_ms=0.7, timeout_ms=800,
+                                0x81, b'', abandon=False, timeout_ms=800,
                                 name='final 0x81 (no leak)')
     except SystemExit as e:
-        if 'timed out' in str(e):
-            print('  warning: final 0x81 timed out (NAK pool) - continuing')
-            rc, info = -7, None
-        else:
+        if 'timed out' not in str(e):
             raise
+        try:
+            rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                                    (STRING_DESCRIPTOR << 8) | serial_idx,
+                                    HABR_LANG, 0x81, b'', abandon=True,
+                                    cancel_at=0, abandon_timeout_ms=0.7,
+                                    timeout_ms=300,
+                                    name='final 0x81 (abandoned)')
+        except SystemExit as e2:
+            if 'timed out' in str(e2):
+                print('  warning: final 0x81 unresponsive - continuing')
+                rc, info = -7, None
+            else:
+                raise
     if debug:
         debug_raw('final 0x81 no-leak', rc, info)
     if leak_delay_ms:

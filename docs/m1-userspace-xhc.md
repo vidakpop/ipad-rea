@@ -50,3 +50,48 @@ The chip has internal state HCRST/D3hot/FLR/CRCR-DCBAAP-CONFIG-writes **cannot a
    EP0 control TDs → port the checkm8-a5 sequence (arduino sketch = wire spec) onto xHCI TDs —
    the overhang is NATIVE in xHCI (SETUP TRB wLen=0x40 + TWO OUT TRBs — the xHC never checks
    wLength; it DMAs exactly the TD chain — the kernel's usbfs was the only thing that blocked it).
+
+---
+## Session addendum (Nov 12, ~05:30) — checkm8-over-kernel runs + frozen core survives PCI rescan
+
+### checkm8 host-port status (through the NORMAL kernel stack — no module needed!)
+- **sketch mode**: stage 0 ✓; feng-shui runs (in-cancel = stall-after-3 pattern; setup-only = clean
+  620 CANCELLED); stage 2 lands **EXACTLY** `rcvd=0x6C0 of length=0x700` (0x100 on wire + 0x5C0
+  remainder) — the Arduino-identical heap-poised state; stage 3: crit-IN + overwrite OUT times
+  out (device stops ACKing at the overwrite).
+- **native mode (`--mode native --skip-req-stall`)**: phase 1 = **620/620 sync leaks COMPLETED,
+  0 rejected** (only on a real fresh cable attach — a software re-enumeration is NOT equivalent:
+  leaks hang "leak 0 timed out"); phase 2 async-0x800-DNLOAD-cancel ✓ + DFU_ABORT ✓;
+  phase 3 req_leak ✓ COMPLETED (0x80→128B); overwrite = TIMEOUT.
+- The missing axi0mX **"advance buffer offset"** transfer was discovered missing in the port
+  (original: `libusb1_no_error_ctrl_transfer(device, 0, 0, 0, 0, 'A'*overwrite_offset, 10)`
+  between the DNLOAD-cancel and the DFU_ABORT) — RESTORED in our port (commit b47e64f+), but on
+  this 838.3 it times out too. Reference: build/src/matthewpierson-ipwndfu/checkm8.py lines ~517-545.
+- **838.3 quirk confirmed twice**: after a `req_stall` (0x02/3/0/0x80), ep0 hangs forever
+  (leak requests time out; needs physical replug). Hence --skip-req-stall is MANDATORY on 838.3.
+- Temporary state notes: plain string GET (0x80/6/0x0303/0x040A, wLen 0x80) completes in ~900µs
+  with 128B; DFU GETSTATUS healthy dfuIDLE. No_leak (wLen 0x81) completes 129B ~900-917µs —
+  the "receive data then abandon" window is therefore sub-100µs on a complete-transfer host:
+  the crit-IN cancel deadline must be tuned (~850µs? between last-packet and status-ZLP) —
+  the sketch (MAX3421) stops issuing IN tokens after exactly one 0x40 packet; a kernel stack
+  cannot do that, and my patched cancel_at=0x40 completions trip the ZLP guard.
+
+### Frozen core — STILL frozen
+After tonight's PCI remove+rescan cycles (fresh kernel init of the chip through 1000s of
+transfers!) the module path STILL shows: chip walks pool+0 (its eternal internal ring ptr)
+with cc=5, ignores CRCR/DCBAAP/CONFIG writes; ENABLE_SLOT never gets cc=1. The xDC's internal
+state machine does NOT reset on PCI function-level re-enumeration. Only ACPI S3 (or full power
+off) remains as the true reset for the module path.
+
+### Ranked next moves for the pwn session
+1. **Crit-IN cancel-deadline sweep** on sketch mode (`abandon_timeout_ms` around 700-1000µs in
+   ~25µs steps — the measured wire RTT of a complete 0x81 descriptor GET is ~900µs; the window
+   between last data packet and status-ZLP is sub-100µs) — a handful of DFU re-entries.
+2. **`--padding` sweep on sketch mode** (0x40..0x780 step 0x40) — the port's own prescribed
+   fallback; stage 2 is already exact; each attempt needs a fresh DFU entry.
+3. **ACPI S3** (or battery-out power cycle) → immediately `rmmod`/driverless .4 + `xdcdrv`
+   → test ENABLE_SLOT for the frozen-core clear → if cc=1: the module gives TRUE packet-level
+   host (sketch-exact wire behavior incl. receive-then-stop).
+4. Long-shot: patch xhci_hcd's control-transfer TD builder is unnecessary — the kernel ACCEPTS
+   overhang SETups via USBDEVFS_SUBMITURB raw (verified: wLen=0x40 + 0x80 data flows, device
+   ACKs) — the blocker is stage-3 handshake semantics, not emission.

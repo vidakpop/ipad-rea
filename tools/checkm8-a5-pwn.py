@@ -703,10 +703,16 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug):
     # allocates the response buffer from the freed io_buffer region (the heap
     # occupation), while a status-phase ZLP — the only lethal part of an IN
     # transfer — is never sent.
+    # Wire-calibrated (usbmon): a complete 0x81 crit-IN runs submit->complete in
+    # ~866us; the SETUP lands on the wire well before that, and the data phase is
+    # 3 full-speed packets.  The sketch's occupation needs the SETUP PROCESSED by
+    # the device (response-buffer alloc) with the transfer then abandoned mid-data
+    # so no status ZLP ever runs.  Wide window per the trace: 150us..750us.
+    crit_us = getattr(args, 'crit_us', None) or 450
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
-                            0x81, b'', abandon=True, cancel_at=0x40,
-                            abandon_timeout_ms=1.5,
+                            0x81, b'', abandon=True, cancel_at=0,
+                            abandon_timeout_ms=crit_us / 1000.0,
                             timeout_ms=500, name='critical IN')
     if debug:
         debug_raw('critical IN', rc, info)
@@ -1049,6 +1055,9 @@ def main():
                              'transaction like the Arduino and cancels after the '
                              'first packet; setup-only cancels before the data '
                              'phase (default: %(default)s)')
+    parser.add_argument('--crit-us', type=int, default=450,
+                        help='stage-3 critical-IN abandon deadline in us '
+                             '(wire window per usbmon: 150-750; 0=old behavior)')
     parser.add_argument('--spin-us', type=int, default=80,
                         help='abandon deadline for requests cancelled at the '
                              'SETUP stage (setup-only feng shui requests, the '

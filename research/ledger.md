@@ -50,3 +50,27 @@ the kernel's own handlers update the ring state).
 - Never call kernel functions on zero-initialized kernel objects.
 - Small test first (1 cycle), telemetry before volume.
 - No new freeze may cost more than a 60s timeout.
+
+## 2025-XX-XX RINGDUMP era: FIRST confirmed wire execution of a module push
+- Added RAW0_IOC_RINGDUMP (nr 6): dumps EP0 ring first 48 TRBs + enq/deq/cycle state.
+- Baseline (post-PCI-cycle, fresh DFU enum): 12 kernel control TDs at TRB 0-35
+  (SETUP w/ IDT + DATA + STATUS), all cycle=1, cycle_state=1, enq=36.
+- Type-table correction: transfer-ring TRB types are 1=Normal..4=Status,6=Link,7=Event Data
+  (earlier labels used the command-ring table - the "LINK" rows are SETUP TRBs, IDT-carrying).
+- PUSHED ONE COMPLETE TD (GET_DESCRIPTOR device 18B IN + status) via raw0_ioctl:
+    TRB36 = setup inline (IDT+CHAIN+cycle), TRB37 = staging IOVA data 0x12,
+    TRB38 = status IOC. RESULT: enq advanced 36->39 AND
+    "xhci_hcd 0000:04:00.3: Event TRB for slot 4 ep 0 with no TDs queued" in dmesg
+    = TRANSFER EVENT EMITTED = THE FIRST EVER WIRE PROOF of a module push.
+  The push primitive, doorbell, staging DMA, cycle-bit placement all WORK.
+- Post-mortem of prior silent failures: pushes before this had never executed
+  (no events, follow-up kernel URBs -110 behind a stalled fetch). Root diff vs today:
+  today's builder emits IDT (bit6) on SETUP. Missing IDT = xHC DMAs "setup" from
+  garbage pointer => IOMMU-fault-era signature + silent stall. LEDGER UPDATES its
+  verdict: the push primitive is now proven; prior CYC halt-detection readings were
+  garbage (pushes never executed => no halts ever happened). Redo halt-ladder tests
+  on the live primitive.
+- Next ladder: (1) READBACK of staged IN data to verify data-phase correctness,
+  (2) dangling push (has_status=0) + ep_state==2 halt check,
+  (3) single CYC cycle (halt + SET-TR-DEQ resume) validation,
+  (4) scale to the 620-request feng-shui, (5) stage 2/3 overwrite/payload pushes.

@@ -47,8 +47,10 @@
 #define RAW0_IOC_STATE _IOR(RAW0_IOCBASE, 3, struct raw0_state)
 #define RAW0_IOC_LEAK _IOW(RAW0_IOCBASE, 4, struct raw0_leak)
 #define RAW0_IOC_CYC  _IOW(RAW0_IOCBASE, 5, struct raw0_cyc)
+#define RAW0_IOC_RINGDUMP _IOR(RAW0_IOCBASE, 6, struct raw0_ringdump)
 
 #define RAW0_MAX_DATA 0x1000
+#define RAW0_DUMP_TRBS 48
 
 struct raw0_txn {
 	__u8 setup[8];      /* the 8 wire setup bytes (IDT data) */
@@ -126,6 +128,16 @@ struct raw0_cyc {
 	__u32 settle_us;    /* post-push settle before halt polling */
 	__u32 pad1;
 	__u64 user_data;    /* data source (Overshoot-capable) */
+} __attribute__((packed));
+
+struct raw0_ringdump {
+	__u32 enq_idx;       /* ring->enqueue index in first_seg            */
+	__u32 cycle_state;   /* ring->cycle_state as the kernel sees it      */
+	__u32 hw_deq_idx;    /* from EP0 out ctx, 0xFFFFFFFF = none        */
+	__u32 ep_state;      /* raw0_ep0_state(): 1 run, 2 halt, 3 stop    */
+	__u32 slot_id;
+	__u32 num_trbs;      /* number of TRBs dumped (RAW0_DUMP_TRBS)      */
+	__u32 trbs[RAW0_DUMP_TRBS * 4]; /* first_seg TRB words, le32-decoded */
 } __attribute__((packed));
 
 /* ------------------------------------------------------------------ */
@@ -445,6 +457,10 @@ static struct xhci_command *(*p_alloc_cmd)(struct xhci_hcd *, bool, gfp_t);
 static void (*p_free_cmd)(struct xhci_hcd *, struct xhci_command *);
 static int (*p_queue_reset_ep)(struct xhci_hcd *, struct xhci_command *,
                                int, unsigned int, enum xhci_ep_reset_type);
+static int (*p_queue_command)(struct xhci_hcd *, struct xhci_command *,
+                              u32, u32, u32, u32, bool);
+static dma_addr_t (*p_trb_virt_to_dma)(struct xhci_segment *,
+                                       union xhci_trb *);
 static void (*p_ring_cmd_db)(struct xhci_hcd *);
 
 static void *(*kallsyms_one)(const char *name);
@@ -600,32 +616,73 @@ unlock:
 		goto out;
 	}
 
-	/* Halted: recover with Reset Endpoint, soft reset (TSP) */
-	cmd = p_alloc_cmd(xhci, true, GFP_KERNEL);
-	if (!cmd) {
-		rc = -ENOMEM;
-		goto out;
-	}
-	spin_lock_irqsave(&xhci->lock, flags);
-	rc = p_queue_reset_ep(xhci, cmd, g_slot, 0, EP_SOFT_RESET);
-	if (rc == 0)
-		p_ring_cmd_db(xhci);
-	spin_unlock_irqrestore(&xhci->lock, flags);
-	if (rc) {
+	/* Halted at TD end: recover with Set TR Dequeue Pointer - the
+	 * spec's cancel-semantic restart issued FROM the Halted state
+	 * (4.6.10). It abandons the pending control sequence (the wire
+	 * never sees a status for it - the dangling leak) and restarts
+	 * the ring AT our next push position. TSP was proven
+	 * insufficient: it clears the halt flag but leaves the control
+	 * sequence FSM pending, so the next SETUP can never execute. */
+	{
+		struct xhci_virt_ep *ep = &vdev->eps[0];
+		dma_addr_t deq;
+		u32 cycle, sct = 0;
+
+		cmd = p_alloc_cmd(xhci, true, GFP_KERNEL);
+		if (!cmd) {
+			rc = -ENOMEM;
+			goto out;
+		}
+		if (ring->enq_seg != ring->first_seg) {
+			p_free_cmd(xhci, cmd);
+			rc = -EIO;
+			goto out;
+		}
+		deq = p_trb_virt_to_dma(ring->enq_seg,
+		                         ring->enqueue);
+		if (!deq) {
+			p_free_cmd(xhci, cmd);
+			rc = -EIO;
+			goto out;
+		}
+		cycle = ring->cycle_state & 0x1;
+		/* feed the kernel's own completion handler so it syncs
+		 * the software dequeue pointer for us */
+		ep->queued_deq_seg = ring->enq_seg;
+		ep->queued_deq_ptr = ring->enqueue;
+		spin_lock_irqsave(&xhci->lock, flags);
+		rc = p_queue_command(xhci, cmd,
+			lower_32_bits(deq) | sct | cycle,
+			upper_32_bits(deq),
+			0,  /* stream id 0 */
+			SLOT_ID_FOR_TRB(g_slot) |
+			EP_INDEX_FOR_TRB(0) |
+			TRB_TYPE(TRB_SET_DEQ),
+			false);
+		if (rc == 0)
+			p_ring_cmd_db(xhci);
+		spin_unlock_irqrestore(&xhci->lock, flags);
+		if (rc) {
+			ep->queued_deq_seg = NULL;
+			ep->queued_deq_ptr = NULL;
+			p_free_cmd(xhci, cmd);
+			rc = -EIO;
+			goto out;
+		}
+		if (!wait_for_completion_timeout(cmd->completion,
+		                                 msecs_to_jiffies(100))) {
+			ep->queued_deq_seg = NULL;
+			ep->queued_deq_ptr = NULL;
+			p_free_cmd(xhci, cmd);
+			rc = -ETIMEDOUT;
+			goto out;
+		}
+		rc = cmd->status;
 		p_free_cmd(xhci, cmd);
-		goto out;
-	}
-	if (!wait_for_completion_timeout(cmd->completion,
-	                                 msecs_to_jiffies(100))) {
-		p_free_cmd(xhci, cmd);
-		rc = -ETIMEDOUT;
-		goto out;
-	}
-	rc = cmd->status;
-	p_free_cmd(xhci, cmd);
-	if (rc != 0) {
-		rc = -EIO;
-		goto out;
+		if (rc != 0) {
+			rc = -EIO;
+			goto out;
+		}
 	}
 
 	/* poll for Running */
@@ -768,6 +825,46 @@ static int raw0_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static long raw0_ringdump(unsigned long arg)
+{
+	struct raw0_ringdump rd;
+	struct xhci_hcd *xhci = g_xhci;
+	struct xhci_virt_device *v;
+	struct xhci_ring *ring;
+	u32 i;
+
+	if (!xhci)
+		return -ENODEV;
+	if (g_slot <= 0 || !xhci->devs[g_slot])
+		return -ENODEV;
+	v = xhci->devs[g_slot];
+	ring = v->eps[0].ring;
+	if (!ring || !ring->first_seg)
+		return -ENODEV;
+	if (ring->enq_seg != ring->first_seg)
+		pr_info("raw0: note - multi-seg EP0 ring, dump of first seg only\n");
+	memset(&rd, 0, sizeof(rd));
+	rd.enq_idx = (u32)(ring->enqueue - ring->first_seg->trbs);
+	rd.cycle_state = ring->cycle_state;
+	rd.hw_deq_idx = raw0_hw_deq_idx(xhci, g_slot, ring);
+	rd.ep_state = raw0_ep0_state(xhci, g_slot);
+	rd.slot_id = (u32)g_slot;
+	rd.num_trbs = RAW0_DUMP_TRBS;
+	for (i = 0; i < RAW0_DUMP_TRBS; i++) {
+		union xhci_trb *t = ring->first_seg->trbs + i;
+		rd.trbs[i * 4 + 0] = le32_to_cpu(t->generic.field[0]);
+		rd.trbs[i * 4 + 1] = le32_to_cpu(t->generic.field[1]);
+		rd.trbs[i * 4 + 2] = le32_to_cpu(t->generic.field[2]);
+		rd.trbs[i * 4 + 3] = le32_to_cpu(t->generic.field[3]);
+	}
+	if (copy_to_user((void __user *)arg, &rd, sizeof(rd)))
+		return -EFAULT;
+	pr_info("raw0: ringdump enq_idx=%u cyc=%u hw_deq=%u ep_state=%u slot=%u\n",
+		rd.enq_idx, rd.cycle_state, rd.hw_deq_idx, rd.ep_state,
+		rd.slot_id);
+	return 0;
+}
+
 static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct raw0_txn t;
@@ -788,6 +885,8 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (copy_from_user(&cyc, (void __user *)arg, sizeof(cyc)))
 			return -EFAULT;
 		return raw0_cyc(&cyc);
+	case RAW0_IOC_RINGDUMP:
+		return raw0_ringdump(arg);
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;
@@ -866,9 +965,11 @@ static int __init raw0_init(void)
 	p_alloc_cmd = resolve_sym("xhci_alloc_command");
 	p_free_cmd = resolve_sym("xhci_free_command");
 	p_queue_reset_ep = resolve_sym("xhci_queue_reset_ep");
+	p_queue_command = resolve_sym("queue_command");
 	p_ring_cmd_db = resolve_sym("xhci_ring_cmd_db");
+	p_trb_virt_to_dma = resolve_sym("xhci_trb_virt_to_dma");
 	if (!p_alloc_cmd || !p_free_cmd || !p_queue_reset_ep ||
-	    !p_ring_cmd_db) {
+	    !p_queue_command || !p_ring_cmd_db || !p_trb_virt_to_dma) {
 		pr_err("raw0: command symbold resolution failed\n");
 		ret = -ENOENT;
 		goto err_hook;

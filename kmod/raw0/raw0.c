@@ -48,6 +48,8 @@
 #define RAW0_IOC_LEAK _IOW(RAW0_IOCBASE, 4, struct raw0_leak)
 #define RAW0_IOC_CYC  _IOW(RAW0_IOCBASE, 5, struct raw0_cyc)
 #define RAW0_IOC_RINGDUMP _IOR(RAW0_IOCBASE, 6, struct raw0_ringdump)
+#define RAW0_IOC_READBACK _IOWR(RAW0_IOCBASE, 7, struct raw0_readback)
+#define RAW0_IOC_DBELL  _IOW(RAW0_IOCBASE, 8, struct raw0_dbell)
 
 #define RAW0_MAX_DATA 0x1000
 #define RAW0_DUMP_TRBS 48
@@ -138,6 +140,18 @@ struct raw0_ringdump {
 	__u32 slot_id;
 	__u32 num_trbs;      /* number of TRBs dumped (RAW0_DUMP_TRBS)      */
 	__u32 trbs[RAW0_DUMP_TRBS * 4]; /* first_seg TRB words, le32-decoded */
+	__u32 ctx[256]; /* out_ctx first 1024 bytes, le32-decoded */
+} __attribute__((packed));
+
+struct raw0_dbell {
+	__u32 array_index; /* 0xFFFFFFFF = g_slot (module default) */
+	__u32 value;      /* doorbell value: (ep_id<<16)|stream; 0 = EP0/0 */
+} __attribute__((packed));
+
+struct raw0_readback {
+	__u32 len;          /* in: bytes to read back (max RAW0_MAX_DATA) */
+	__u32 status;       /* out: 0 ok, 1 staging not mapped */
+	__u8 data[RAW0_MAX_DATA]; /* out: staging content (DMA-coherent view) */
 } __attribute__((packed));
 
 /* ------------------------------------------------------------------ */
@@ -857,11 +871,62 @@ static long raw0_ringdump(unsigned long arg)
 		rd.trbs[i * 4 + 2] = le32_to_cpu(t->generic.field[2]);
 		rd.trbs[i * 4 + 3] = le32_to_cpu(t->generic.field[3]);
 	}
+	{
+		struct xhci_container_ctx *oc = v->out_ctx;
+		size_t n = oc->size;
+		if (n > 1024)
+			n = 1024;
+		memcpy(rd.ctx, oc->bytes, n);
+	}
 	if (copy_to_user((void __user *)arg, &rd, sizeof(rd)))
 		return -EFAULT;
 	pr_info("raw0: ringdump enq_idx=%u cyc=%u hw_deq=%u ep_state=%u slot=%u\n",
 		rd.enq_idx, rd.cycle_state, rd.hw_deq_idx, rd.ep_state,
 		rd.slot_id);
+	return 0;
+}
+
+static long raw0_readback(unsigned long arg)
+{
+	struct raw0_readback rb;
+
+	if (copy_from_user(&rb, (void __user *)arg, sizeof(rb)))
+		return -EFAULT;
+	if (rb.len > RAW0_MAX_DATA)
+		rb.len = RAW0_MAX_DATA;
+	if (!staging_mapped) {
+		rb.status = 1;
+		memset(rb.data, 0, sizeof(rb.data));
+	} else {
+		rb.status = 0;
+		memcpy(rb.data, staging, rb.len);
+		/* dump the tail untouched for smaller reads */
+		if (rb.len < RAW0_MAX_DATA)
+			memset(rb.data + rb.len, 0,
+			       RAW0_MAX_DATA - rb.len);
+	}
+	if (copy_to_user((void __user *)arg, &rb, sizeof(rb)))
+		return -EFAULT;
+	return 0;
+}
+
+static long raw0_dbell(unsigned long arg)
+{
+	struct raw0_dbell db;
+	struct xhci_hcd *xhci = g_xhci;
+
+	if (!xhci)
+		return -ENODEV;
+	if (copy_from_user(&db, (void __user *)arg, sizeof(db)))
+		return -EFAULT;
+	if (db.array_index == 0xFFFFFFFFu)
+		db.array_index = (u32)g_slot;
+	if (db.array_index > 32)
+		return -EINVAL;
+	/* doorbell array is slot-1-indexed: slot N -> doorbell[N-1] */
+	writel(db.value, &xhci->dba->doorbell[db.array_index]);
+	pr_info("raw0: doorbell[%u] = 0x%x (g_slot=%d)\n", db.array_index,
+		db.value, g_slot);
 	return 0;
 }
 
@@ -887,6 +952,10 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return raw0_cyc(&cyc);
 	case RAW0_IOC_RINGDUMP:
 		return raw0_ringdump(arg);
+	case RAW0_IOC_READBACK:
+		return raw0_readback(arg);
+	case RAW0_IOC_DBELL:
+		return raw0_dbell(arg);
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;

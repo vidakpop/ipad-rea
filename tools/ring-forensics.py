@@ -16,7 +16,7 @@ import struct
 import sys
 
 NDUMP = 48
-RD_SIZE = 6 * 4 + NDUMP * 4 * 4  # 792
+RD_SIZE = 6 * 4 + NDUMP * 4 * 4 + 1024  # 792
 ST_SIZE = 40
 
 IOC_PUSH = (1 << 30) | (32 << 16) | (ord("R") << 8) | 1

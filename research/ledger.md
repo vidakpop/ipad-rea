@@ -74,3 +74,51 @@ the kernel's own handlers update the ring state).
   (2) dangling push (has_status=0) + ep_state==2 halt check,
   (3) single CYC cycle (halt + SET-TR-DEQ resume) validation,
   (4) scale to the 620-request feng-shui, (5) stage 2/3 overwrite/payload pushes.
+
+## RINGDUMP-era VERDICT (the false positive corrected + the real root cause)
+CORRECTION of the earlier "confirmed wire execution" entry: FALSE POSITIVE.
+The "Event TRB ... no TDs queued" WARNs correlated with OTHER devices'
+re-enumeration cycles on the same controller, not with module pushes.
+Decisive negative proof (READBACK ioctl, staging buffer): pushes of complete
+GET_DESCRIPTOR TDs NEVER put ROM data into staging - zero bytes every time,
+including multiple attempts fired DURING the enum window. No module push has
+ever executed a wire transaction.
+
+Actual root-cause knowledge (out_ctx forensics, ctx now dumped in RINGDUMP):
+- The device out_ctx slot context shows ADDRESS FIELD = 4 (nonzero) with
+  EP0 running. The BSR lie ("address stays 0 on the wire") does NOT hold:
+  post-enum, every token the xHC emits for this slot is addressed to the
+  kernel-chosen devnum, while the DFU ROM (never SET_ADDRESSed) only
+  answers its enum flow. Hence: enum strings read fine every cycle
+  (kernel-driven, during the enum state machine), while every usbfs read
+  after that returns a zero-length instant completion (~238ms) and every
+  module push parks silently - the ROM is deaf to both.
+- Doorbell experiments: even ringing the CORRECT bell (doorbell[0] for
+  slot 1, value 0x10000 = EP0) does not make parked TRBs fetch.
+- The ~238ms zero-byte "successful" usbfs reads: instant-looking
+  completions with no data - xHC closing TDs against a device that never
+  answers at that address.
+- 0x13 = COMP_CONTEXT_STATE_ERROR fires during enum because high-speed
+  double port reset calls xhci_setup_device twice; the module's hijack
+  forces CONTEXT_ONLY both times; the second Address Device errors.
+IMPLICATION FOR THE EXPLOIT: the module's "capture then push later" model
+is architecturally wrong in this AMD host - the only wire-live window is
+the enum itself, driven by the kernel. Any checkm8 spray must either
+(a) ride the enum (intercept and serve/inject inside xhci_setup_device's
+    window with the port in the enum state), or
+(b) make the ROM hear post-enum traffic, which requires the slot context
+    address field to be 0 - i.e. patch the slot context (a context write,
+    not just token-level) OR stop the kernel from writing the address.
+(c) Alternative: use the LEAK ioctl's kernel-internal URB path (the kernel
+    queues + cancels real URBs) - this produced the old-era 128-byte served
+    behavior per the 1840s evidence only when reads actually served; with
+    the address-4 deafness, kernel-internal URBs suffer the same fate.
+NEXT: the module hook could also rewrite the slot context address field to
+0 via its command-ring access (SET_CONTEXT/p_queue_command with an input
+context) right after capture - making post-enum tokens wire-address 0 -
+then the parked-TD/spray model revives. This is the top candidate for the
+ reboot.
+Host hygiene: an increasing number of syscall paths (dmesg/journalctl/
+kmsg reads, rmmod, insmod, unbind) enter multi-ten-second transient wedges
+- the host needs a reboot soon; /tmp build dirs get wiped, rebuild from
+kmod/raw0 after boot.

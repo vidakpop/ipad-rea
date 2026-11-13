@@ -705,15 +705,21 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
         print('  warning: set-state OUT rc=%d (continuing like the sketch)' % rc)
     if info and info[0] != 0:
         print('  warning: set-state OUT status=%s (continuing)' % status_name(info[0]))
-    # (e) zero-length DNLOAD
-    rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, None, 10)
-    if debug:
-        print('    [debug] zero DNLOAD       ctrl rc=%d' % rc)
-    # (f) two DFU GETSTATUS requests
-    for i in range(2):
-        rc, raw = usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
+    # (e) zero-length DNLOAD + (f) two GETSTATUS: closed SETUPs that re-arm
+    # the DFU state machine.  In --poison-append flow they would terminate
+    # the freshly poisoned open data phase, so they are skipped there and
+    # the 0x700 pending DNLOAD that follows carries the arming.
+    skip_ef = getattr(stage2, 'poison_append', False)
+    if not skip_ef:
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, None, 10)
         if debug:
-            print('    [debug] GETSTATUS %d        ctrl_in rc=%d raw=%s' % (i + 1, rc, raw.hex()))
+            print('    [debug] zero DNLOAD       ctrl rc=%d' % rc)
+        for i in range(2):
+            rc, raw = usb.ctrl_in(handle, 0xA1, REQ_DFU_GETSTATUS, 0, 0, 6, 1000)
+            if debug:
+                print('    [debug] GETSTATUS %d        ctrl_in rc=%d raw=%s' % (i + 1, rc, raw.hex()))
+    else:
+        print('  (poison-append flow: (e)/(f) skipped to protect the open phase)')
     # (g) incomplete DNLOAD.  The device must end up with
     # ep0_data_phase_rcvd = padding of length = padding + 0x40: if it
     # receives all of length it fires end_of_transfer and resets the

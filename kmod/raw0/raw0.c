@@ -83,6 +83,12 @@ static int g_slot = -1;
 static DEFINE_MUTEX(raw0_mtx);
 static void *staging;          /* kernel buffer for data phase */
 static dma_addr_t staging_dma;
+static int staging_mapped;     /* persistent once the xhci is known:
+                                * dangling TDs keep the xHC fetching
+                                * staging long after the ioctl returns,
+                                * so the mapping must outlive every push
+                                * (per-push unmap caused AMD-Vi IO page
+                                * faults that wedged EP0). */
 static u32 g_trbs_pushed;
 
 static void notrace raw0_hook(unsigned long ip, unsigned long parent_ip,
@@ -242,7 +248,6 @@ static int raw0_push(const struct raw0_txn *t)
 	u64 setup_param;
 	u32 trbs = 1; /* setup */
 	int rc = 0;
-	bool mapped = false;
 	u32 off = 0, remain;
 	u32 i;
 
@@ -266,12 +271,13 @@ static int raw0_push(const struct raw0_txn *t)
 		goto out;
 	}
 	/* live ring headroom: EP0 rings are single-segment (256 TRBs,
-	 * self-linked). Prefer the hardware dequeue pointer out of the
-	 * device context (dangling TDs never produce events, so the
-	 * kernel's cached dequeue lags); fall back to the cached one
-	 * if the context read is unusable. Leave 16 TRBs of margin. */
+	 * self-linked). The AMD xHC does not expose its live dequeue
+	 * pointer in the EP context (reads 0), and dangling TDs never
+	 * produce events, so the kernel's cached dequeue only advances
+	 * when a status-completing URB runs after them - the orchestrator
+	 * pumps such a URB every 16 pushes. Leave 16 TRBs of margin. */
 	{
-		u32 enq_idx, deq_idx, used, hw_idx;
+		u32 enq_idx, deq_idx, used;
 
 		if (ring->enq_seg != ring->first_seg ||
 		    ring->deq_seg != ring->first_seg) {
@@ -279,9 +285,7 @@ static int raw0_push(const struct raw0_txn *t)
 			goto out;
 		}
 		enq_idx = ring->enqueue - ring->first_seg->trbs;
-		hw_idx = raw0_hw_deq_idx(xhci, g_slot, ring);
-		deq_idx = (hw_idx != (u32)-1) ? hw_idx :
-		          (u32)(ring->dequeue - ring->first_seg->trbs);
+		deq_idx = (u32)(ring->dequeue - ring->first_seg->trbs);
 		used = (enq_idx - deq_idx) & (TRBS_PER_SEGMENT - 1);
 		if (used + trbs + 16 > TRBS_PER_SEGMENT) {
 			rc = -ENOSPC;
@@ -295,18 +299,20 @@ static int raw0_push(const struct raw0_txn *t)
 			rc = -EFAULT;
 			goto out;
 		}
-		staging_dma = dma_map_single(
-			xhci_to_hcd(xhci)->self.sysdev, staging,
-			t->data_len, DMA_TO_DEVICE);
-		if (dma_mapping_error(xhci_to_hcd(xhci)->self.sysdev,
-		                      staging_dma)) {
-			rc = -EIO;
-			goto out;
+		if (!staging_mapped) {
+			struct device *dma_dev =
+				xhci_to_hcd(xhci)->self.sysdev;
+			staging_dma = dma_map_single(dma_dev, staging,
+				RAW0_MAX_DATA, DMA_BIDIRECTIONAL);
+			if (dma_mapping_error(dma_dev, staging_dma)) {
+				rc = -EIO;
+				goto out;
+			}
+			staging_mapped = 1;
 		}
-		mapped = true;
-		wmb();
 	} else if (t->has_data) {
 	}
+	wmb();
 
 	setup_param = le64_to_cpu(*(__le64 *)t->setup);
 
@@ -366,9 +372,6 @@ unlock:
 	if (rc == 0)
 		g_trbs_pushed += trbs;
 	spin_unlock_irqrestore(&xhci->lock, flags);
-	if (mapped)
-		dma_unmap_single(xhci_to_hcd(xhci)->self.sysdev, staging_dma,
-		                 t->data_len, DMA_TO_DEVICE);
 out:
 	mutex_unlock(&raw0_mtx);
 	return rc;
@@ -522,6 +525,11 @@ err_hook:
 
 static void __exit raw0_exit(void)
 {
+	if (staging_mapped && g_xhci)
+		dma_unmap_single(xhci_to_hcd(g_xhci)->self.sysdev,
+		                 staging_dma, RAW0_MAX_DATA,
+		                 DMA_BIDIRECTIONAL);
+	staging_mapped = 0;
 	kfree(staging);
 	device_destroy(raw0_class, raw0_devt);
 	class_destroy(raw0_class);

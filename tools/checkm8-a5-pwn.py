@@ -687,10 +687,13 @@ def stage2(usb, out_spin_us, padding, debug, live_handle=None):
                                 name='set-state pending')
         if debug:
             debug_raw('set-state pending', rc, info)
+        # The sketch closes its set-state with the INHS status handshake; the
+        # append transfer completes normally so the poisoned context closes
+        # the same way instead of hanging mid-phase.
         rc2, info2 = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, 0x40,
-                                 b'\xcc' * 0x40, abandon=True, cancel_at=0,
-                                 abandon_timeout_ms=0.45, timeout_ms=900,
-                                 name='set-state poison append')
+                                  b'\xcc' * 0x40, abandon=False,
+                                  timeout_ms=1000,
+                                  name='set-state poison append')
         if debug:
             debug_raw('set-state poison append', rc2, info2)
     elif getattr(stage2, 'sketch_shape', False):

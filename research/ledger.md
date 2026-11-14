@@ -749,3 +749,31 @@ kmalloc staging, not coh_buf; patch READBACK or add a COH readback).
 Infrastructure triage note: after tonight's many cycles, expect the
 module/accounting machinery to want a REBOOT before the campaign
 (fresh kernel world + fresh ring walks).
+
+## Nov 15 00:5x: THE NULL-RESULT CORRECTION - the CYC world never touched the wire
+Instrumented verdict (READBACK of the coherent buffer, the armed-quality
+instrument, commit f9526f6):
+- crit-IN CYC: rc=0 but READBACK = ALL ZEROS - no data ever DMA'd into
+  the data TRB.
+- with-status module pushes (GETSTATUS 6B, serial GET 0x80): rc=0,
+  READBACK zeros.
+- kernel kick URB after module pushes: times out (-7); the device then
+  stopped serving even clean-process reads (USB task wedged - the
+  expected recoverable class, force-restart + fresh dance heals).
+SYNTHESIS - the fetch mechanic: the AMD chip does NOT fetch TDs on the
+module's doorbell write alone. Every historical "served" measurement
+happened with a kernel URB active alongside (the "kernel-URB kick"
+class). Tonight's CYC world deliberately avoided kernel activity, so
+rc=0 cycles were HOST-SIDE RING THEATER: parse-halt + Set-TR-Deq
+recovery, repeatedly, with zero wire bytes. The ROM never knew. This
+also re-frames the earlier "delivery wall closed" entry: the wire was
+never touched in those runs.
+WHAT THE NEXT SESSION MUST BUILD (the fetch matrix, on a fresh dance):
+1. minimal fetch experiment: fresh dance -> port reset -> module push
+   WITH-status -> tiny usbfs kick -> READBACK (served bytes = fetch OK)
+2. if kick-fetch works: interleave design - every CYC followed by a
+   kernel kick URB; the -7-death-after-CYC problem must be solved in
+   the same matrix (kick-after-recovery timing).
+3. only then re-run FINAL shapes; the padding sweep is meaningless until
+   wire delivery is measured-bytes-confirmed (READBACK non-zero).
+The instrument (READBACK-coh) stays the per-step wire-serve proof.

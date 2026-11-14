@@ -777,3 +777,26 @@ WHAT THE NEXT SESSION MUST BUILD (the fetch matrix, on a fresh dance):
 3. only then re-run FINAL shapes; the padding sweep is meaningless until
    wire delivery is measured-bytes-confirmed (READBACK non-zero).
 The instrument (READBACK-coh) stays the per-step wire-serve proof.
+
+## Nov 15 01:0x: fetch-kick test on FRESH dance - the kill is crisp and single
+Setup: fresh force-restart + dance, module pre-loaded (00:47 build),
+capture live at the dance's enum (state=1), pre-readback zeros.
+Result: module GETSTATUS push rc=0, kernel kick urb TIMEOUT (-7,
+twice - test A and B), READBACK zeros. THE CHIP FETCHES NOTHING after
+any module TD lands - not the module TD, not the kernel's own URB.
+Two candidate mechanisms, separable by one instrument:
+1. WRONG-SLOT CAPTURE: the hook fires at vid==0 (pre-descriptor) for
+   ANY high-speed device; an internal device (fingerprint reader) can
+   capture AFTER the dance's enum. Module TDs would land on a dead
+   slot's ring; ringing a suspended slot's doorbell may freeze the
+   chip's whole fetch engine (consistent with kernel-URB death too).
+2. TD-LEVEL HALT: the module TD shape halts the chip pipeline.
+THE NEXT INSTRUMENT (10 min): expose g_udev->busnum/devnum in the
+STATE ioctl (the module already captures g_udev). If the captured
+devnum != the iPad's, mechanism 1 -> fix = gate the hook on
+05ac:1227 only (defer capture until full descriptors exist, or
+re-capture check at push time). If devnum == the iPad's, mechanism 2
+-> the TD shape needs the walk-level forensics (usbmon, bounded).
+Also tonight's reproducibility note: the kick-death reproduced on
+consecutive fresh dances at 00:52 and 01:0x - deterministic, not
+load-related.

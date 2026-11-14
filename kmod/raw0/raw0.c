@@ -501,8 +501,14 @@ static int raw0_push(const struct raw0_txn *t)
 	if (t->has_status) {
 		u32 status_ctl = TRB_TYPE(TRB_STATUS) | TRB_IOC;
 
-		if (!t->has_data)
-			status_ctl |= TRB_DIR_IN; /* no-data control: status IN */
+		if (!t->has_data || (t->has_data && !t->dir_in))
+			/*
+			 * Status phase direction: no-data controls and
+			 * data-carrying OUT controls take the status
+			 * packet as IN (the IN-data case's default
+			 * composite already carries the correct OUT).
+			 */
+			status_ctl |= TRB_DIR_IN;
 		rc = queue_trb_rep(ring, 0, 0, status_ctl, false);
 		if (rc)
 			goto unlock;

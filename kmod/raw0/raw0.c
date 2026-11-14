@@ -885,7 +885,11 @@ static int raw0_leak(const struct raw0_leak *l)
 		usb_kill_urb(leak_urb);
 		return -ETIMEDOUT;
 	}
-	return leak_urb->status;
+	/* encode: low 16 bits = URB status, high 16 = actual_length, so
+	 * userspace can see exactly how many bytes moved before a cancel
+	 * (the mid-data cut evidence). */
+	return (int)(leak_urb->status & 0xffff) |
+	       ((int)(leak_urb->actual_length & 0xffff) << 16);
 }
 
 

@@ -800,3 +800,27 @@ re-capture check at push time). If devnum == the iPad's, mechanism 2
 Also tonight's reproducibility note: the kick-death reproduced on
 consecutive fresh dances at 00:52 and 01:0x - deterministic, not
 load-related.
+
+## 2026-11-15 01:10 EAT — THE FETCH INTERLEAVE IS BORN (f16eb3d)
+
+Fix: dropped TRB_CHAIN from the module's SETUP TRBs (both push paths).
+
+Evidence that closed the case (td-forensics on a frozen ring):
+- chip hwdeq = 0x2f pinned AT the module's unfetched SETUP TD, ep state 3 (STOPPED)
+- kernel's own retired SETups on this AMD xHC: w3 = 0x30841 (NO chain bit)
+- module's frozen SETUP: w3 = 0x30851 (+TRB_CHAIN) — one bit, rejected every time
+- conclusion: this microcode only fetches the unchained SETUP pattern
+
+Post-fix fetch-kick-test on a fresh dance (bus 3 addr 42):
+- [A] module GETSTATUS push → chip FETCHED our TD; our coherent buffer
+  read back 00 32 00 00 02 (bStatus OK, state dfuIDLE) — served through
+  the module TRB; kernel kick URB also completed (rc=8) — both flows live
+- [B] module serial-descriptor GET → our buffer received the device's
+  UTF-16 serial 'CPID:8940 CPRV:' — big serve through module TD + kick;
+  kernel kick correctly timed out (module data TRB claimed the IN slot)
+
+First true wire ownership in the entire effort. Every earlier rc=0 run
+was host-side theater; from here TDs are fetched for real.
+
+Next: pwn-final3.py full sequence on a fresh dance (heap feng shui
+must start from a pristine chip DFU heap).

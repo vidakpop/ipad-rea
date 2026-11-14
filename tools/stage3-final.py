@@ -77,6 +77,8 @@ def main():
     if rc != 0:
         # ring forensics: is the ring view healthy enough to retry?
         try:
+            import fcntl as _f
+            import struct as _s
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
             import importlib.util as _ilu
             _sp = _ilu.spec_from_file_location(
@@ -84,7 +86,11 @@ def main():
                                    'push-forensics.py'))
             PF = _ilu.module_from_spec(_sp)
             _sp.loader.exec_module(PF)
-            head, vals = PF.ringdump(fd_raw)
+            buf = bytearray(PF.RD_SIZE)
+            _f.ioctl(fd_raw, PF.IOC_RINGDUMP, buf, True)
+            vals = _s.unpack("<%dI" % (PF.RD_SIZE // 4), bytes(buf))
+            head = dict(enq=vals[0], cyc=vals[1], hwdeq=vals[2],
+                        epst=vals[3], slot=vals[4])
             print('[ring] enq=%d cyc=%d hwdeq=0x%x epst=0x%x slot=%d'
                   % (head['enq'], head['cyc'], head['hwdeq'], head['epst'],
                      head['slot']))

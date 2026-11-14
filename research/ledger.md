@@ -674,3 +674,30 @@ The only host-software surfaces that can still produce the shape:
 Stage-1 remains deliverable (in-cancel 620 clean, era evidence at ~655);
 the knife-edge/stage-2 was reachable in earlier padding runs; the kill
 is exclusively the stage-3 write class.
+
+## Nov 15 00:0x: THE CYC ARCHITECTURE - every primitive proven on the wire
+1. STATE-MAPPING BUG FOUND: the tools misread struct raw0_state field order
+   (real order: xhci, slot, ring_addr_lo, num_trbs_free, cycle_state,
+   state, trbs_pushed, deq_off, ep0_state). Tonight's "state=1/pushed=0/
+   k_deq=garbage" prints were real state=1 (ring live) + trbs_pushed=0 +
+   deq_off=-1846 (stale ring accounting).
+2. raw0_cyc IS THE COMPLETE PRIMITIVE: push SETUP+data (no status) ->
+   chip fetches -> halts at the missing status -> Set TR Dequeue Pointer
+   recovery (ring rebuilt; wire never sees status). Proven twice with rc=0
+   ( fetched + halted + recovered): the armed shape executes.
+3. CYC skips the raw0_push seg-check entirely and does not read ring->dequeue -
+   immune to the stale-accounting -EIO class.
+4. THE KERNEL URB PATH IS DEAD POST-Set-TR-Deq: both raw_ctrl overhang
+   writes submitted, waited 3-4s, actual=0 - the chip never fetched kernel
+   TDs after the module's recovery. ALL writes must ride CYC pushes.
+5. AMD-Vi streaming map failure class hit tonight (READBACK status=1).
+   Coherent-alloc fallback (dma_alloc_coherent, pre-mapped IOVA) added and
+   engaged; staging now maps (READBACK status=0).
+6. Wire-state change observed: after crit-IN CYC + UAF CYC + payload CYC +
+   port reset, the ROM stopped serving descriptor reads (dmesg -110 loop).
+   The writes REACHED the device (wire behavior changed). Ordered clean
+   re-run needed: fresh dance -> A(spray+knife-edge) -> B(bridge) ->
+   CYC crit-IN -> CYC UAF write -> CYC payload -> reset -> PWNED check.
+7. The 23:46/23:54 module rebuilds WORK (CYC + symbols resolve at init);
+   the earlier -EIO confusion was the seg-check + stale accounting, not
+   the rebuilds.

@@ -15,6 +15,7 @@ requests); any 25s idle gap wastes it. Everything here is the safe
 class: complete/served usbfs transfers, the day-one timed cancels
 (usbfs-level, proven), one complete pushed TD.
 """
+import ctypes
 import fcntl
 import glob
 import importlib.util
@@ -44,17 +45,35 @@ class Ctl(ctypes.Structure):
                 ("data", ctypes.c_void_p)]
 
 
-def wait_dfu(timeout=600, poll=0.05):
+def dfu_present():
+    for p in glob.glob("/sys/bus/usb/devices/*/idProduct"):
+        try:
+            if open(p).read().strip() == "1227":
+                return os.path.dirname(p)
+        except OSError:
+            pass
+    return None
+
+
+def wait_dfu(timeout=600, poll=0.05, require_reconnect=True):
+    """If require_reconnect and a stale DFU device is already attached,
+    wait for it to disappear (the power-hold) and then reappear (the
+    DFU dance). Returns (node, wait_seconds) or (None, None)."""
     t0 = time.time()
+    if require_reconnect and dfu_present():
+        print("[burst] stale DFU device attached - power-hold the iPad now "
+              "(waiting for disconnect)")
+        while dfu_present():
+            if time.time() - t0 > timeout:
+                return None, None
+            time.sleep(poll)
+        print("[burst] device gone - do the DFU dance now (waiting for entry)")
     while time.time() - t0 < timeout:
-        for p in glob.glob("/sys/bus/usb/devices/*/idProduct"):
-            try:
-                if open(p).read().strip() == "1227":
-                    return os.path.dirname(p), time.time() - t0
-            except OSError:
-                pass
+        node = dfu_present()
+        if node:
+            return node, time.time() - t0
         time.sleep(poll)
-    return None, None
+    return None, None, None
 
 
 def module_state(rfd):

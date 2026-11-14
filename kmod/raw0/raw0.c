@@ -50,6 +50,8 @@
 #define RAW0_IOC_RINGDUMP _IOR(RAW0_IOCBASE, 6, struct raw0_ringdump)
 #define RAW0_IOC_READBACK _IOWR(RAW0_IOCBASE, 7, struct raw0_readback)
 #define RAW0_IOC_DBELL  _IOW(RAW0_IOCBASE, 8, struct raw0_dbell)
+#define RAW0_IOC_ADDR0  _IO(RAW0_IOCBASE, 9)
+#define RAW0_IOC_RESETDEV _IO(RAW0_IOCBASE, 10)
 
 #define RAW0_MAX_DATA 0x1000
 #define RAW0_DUMP_TRBS 48
@@ -159,6 +161,10 @@ struct raw0_readback {
 
 static unsigned long target_addr;
 static struct ftrace_ops raw0_ops;
+static unsigned long target2_addr;
+static struct ftrace_ops raw0_cfg_ops;
+static int cfg_hooked;
+static int g_cfg_blocked;
 
 static struct xhci_hcd *g_xhci; /* captured at address-device time */
 static int g_slot = -1;
@@ -212,13 +218,63 @@ static void notrace raw0_hook(unsigned long ip, unsigned long parent_ip,
 		return;
 	}
 
-	/* arg3 (rdx): enum xhci_setup_dev -> SETUP_CONTEXT_ONLY (BSR=1) */
-	regs->dx = 0;
+	/* BSR forcing RETIRED: forcing CONTEXT_ONLY left the slot in Default
+	 * state and the kernel's post-enum chatter wedged the ROM's EP0 FSM -
+	 * every post-enum read on the host died (0 bytes in ~237ms, no bus
+	 * submission). The hook now only CAPTURES xhci/slot/udev for the LEAK
+	 * primitive; the kernel enumerates the ROM natively. */
+	/* regs->dx = 0; */
 
 	/* capture while we are here */
 	g_xhci = hcd_to_xhci(hcd);
 	g_slot = udev->slot_id;
 	g_udev = udev;
+}
+
+/*
+ * ROM crash-loop guard: the A5 DFU ROM wedges shortly after the kernel's
+ * enum finale (SET_CONFIGURATION) and the port starts flap-re-enumerating
+ * forever. usbmon showed each enum's own reads served fine right up to the
+ * SET_CONFIG line. Redirect the iPad's usb_set_configuration() calls to a
+ * stub that returns an error: the device is left at USB_STATE_ADDRESS
+ * (EP0 control transfers remain legal there), never sees SET_CONFIG, and
+ * the ROM stays alive and serving.
+ */
+static int notrace raw0_cfg_stub(void)
+{
+	return -EOPNOTSUPP;
+}
+
+static void notrace raw0_cfg_hook(unsigned long ip, unsigned long parent_ip,
+                                  struct ftrace_ops *op,
+                                  struct ftrace_regs *fregs)
+{
+	struct pt_regs *regs;
+	struct usb_device *dev;
+	u16 vid;
+
+	if (!fregs)
+		return;
+	regs = ftrace_get_regs(fregs);
+	if (!regs)
+		return;
+	dev = (struct usb_device *)regs->di;
+	if (!dev)
+		return;
+	vid = le16_to_cpu(dev->descriptor.idVendor);
+	if (vid == 0) {
+		if (dev->speed != USB_SPEED_HIGH)
+			return;
+	} else if (vid != RAW0_VID ||
+	           le16_to_cpu(dev->descriptor.idProduct) != RAW0_PID) {
+		return;
+	}
+	regs->ip = (unsigned long)raw0_cfg_stub;
+	if (!g_cfg_blocked) {
+		g_cfg_blocked = 1;
+		pr_info("raw0: SET_CONFIGURATION blocked for iPad "
+		        "(ROM crash-loop guard)\n");
+	}
 }
 
 /* ------------------------------------------------------------------ */
@@ -930,6 +986,90 @@ static long raw0_dbell(unsigned long arg)
 	return 0;
 }
 
+/* Zero the slot context's USB address field (bits 25-31 of dev_state).
+ * With the BSR hijack the kernel wrote devnum there while the ROM still
+ * listens at wire address 0 - every token went to a deaf address. The
+ * device context lives in host RAM and the xHC reads it per transfer, so a
+ * direct store redirects all later tokens to address 0 without any
+ * command or wire activity.
+ */
+static long raw0_addr0(void)
+{
+	struct xhci_hcd *xhci = g_xhci;
+	struct xhci_virt_device *v;
+	__le32 *sc;
+	u32 w, wnew;
+
+	if (!xhci)
+		return -ENODEV;
+	if (g_slot <= 0 || !xhci->devs[g_slot])
+		return -ENODEV;
+	v = xhci->devs[g_slot];
+	/* slot ctx dev_state = out_ctx word 3 (offset 12); xhci_get_slot_ctx
+	 * is not exported, offset verified by ctx forensics (+12 = addr bits) */
+	sc = (__le32 *)(v->out_ctx->bytes + 12);
+	w = le32_to_cpu(*sc);
+	wnew = w & ~(0x7Fu << 25);
+	*sc = cpu_to_le32(wnew);
+	pr_info("raw0: slot ctx address cleared: dev_state %08x -> %08x\n",
+		w, wnew);
+	return 0;
+}
+
+/* Issue an xHCI Reset Device command on the captured slot. Per ch9/reset
+ * semantics the xHC transitions the slot back to Default state - the
+ * internally cached USB address becomes 0 while nothing goes out on the
+ * wire. This is the sanctioned way to redirect the token generator to
+ * address 0 (the ROM's address); direct out_ctx RAM writes get reverted
+ * by the xHC's internal context cache.
+ */
+static long raw0_reset_dev(void)
+{
+	struct xhci_hcd *xhci = g_xhci;
+	struct xhci_command *cmd;
+	__le32 *sc;
+	unsigned long flags;
+	u32 w;
+	int rc, i;
+
+	if (!xhci)
+		return -ENODEV;
+	if (g_slot <= 0 || !xhci->devs[g_slot])
+		return -ENODEV;
+
+	cmd = p_alloc_cmd(xhci, false, GFP_KERNEL);
+	if (!cmd)
+		return -ENOMEM;
+
+	spin_lock_irqsave(&xhci->lock, flags);
+	rc = p_queue_command(xhci, cmd,
+			     0, 0, 0,
+			     SLOT_ID_FOR_TRB(g_slot) |
+			     TRB_TYPE(TRB_RESET_DEV),
+			     false);
+	if (rc == 0)
+		p_ring_cmd_db(xhci);
+	spin_unlock_irqrestore(&xhci->lock, flags);
+	if (rc) {
+		p_free_cmd(xhci, cmd);
+		return rc;
+	}
+
+	sc = (__le32 *)(xhci->devs[g_slot]->out_ctx->bytes + 12);
+	for (i = 0; i < 50; i++) {
+		msleep(2);
+		w = le32_to_cpu(*sc);
+		if (((w >> 25) & 0x7f) == 0)
+			break;
+	}
+	w = le32_to_cpu(*sc);
+	pr_info("raw0: RESET_DEV done: dev_state=%08x addr=%u after %dms\n",
+		w, (w >> 25) & 0x7f, (i + 1) * 2);
+	cmd->status = 0;
+	p_free_cmd(xhci, cmd);
+	return (((w >> 25) & 0x7f) == 0) ? 0 : -ETIMEDOUT;
+}
+
 static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct raw0_txn t;
@@ -956,6 +1096,10 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return raw0_readback(arg);
 	case RAW0_IOC_DBELL:
 		return raw0_dbell(arg);
+	case RAW0_IOC_ADDR0:
+		return raw0_addr0();
+	case RAW0_IOC_RESETDEV:
+		return raw0_reset_dev();
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;
@@ -1028,6 +1172,24 @@ static int __init raw0_init(void)
 	}
 	pr_info("raw0: hooking xhci_setup_device at %px "
 	        "(BSR=1 + xhci/slot capture)\n", (void *)target_addr);
+
+	target2_addr = (unsigned long)resolve_sym("usb_set_configuration");
+	if (target2_addr) {
+		raw0_cfg_ops.func = raw0_cfg_hook;
+		raw0_cfg_ops.flags = FTRACE_OPS_FL_SAVE_REGS_IF_SUPPORTED |
+		                     FTRACE_OPS_FL_IPMODIFY;
+		ret = ftrace_set_filter_ip(&raw0_cfg_ops, target2_addr, 0, 0);
+		if (ret == 0) {
+			ret = register_ftrace_function(&raw0_cfg_ops);
+			if (ret == 0) {
+				cfg_hooked = 1;
+				pr_info("raw0: guard on usb_set_configuration "
+				        "at %px\n", (void *)target2_addr);
+			}
+		}
+		if (!cfg_hooked)
+			pr_warn("raw0: cfg guard not installed\n");
+	}
 
 	kallsyms_one = (void *(*)(const char *))
 		resolve_sym("kallsyms_lookup_name");
@@ -1116,6 +1278,8 @@ static void __exit raw0_exit(void)
 	class_destroy(raw0_class);
 	cdev_del(&raw0_cdev);
 	unregister_chrdev_region(raw0_devt, 1);
+	if (cfg_hooked)
+		unregister_ftrace_function(&raw0_cfg_ops);
 	unregister_ftrace_function(&raw0_ops);
 	pr_info("raw0: unloaded\n");
 }

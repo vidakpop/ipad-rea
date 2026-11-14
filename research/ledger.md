@@ -122,3 +122,24 @@ Host hygiene: an increasing number of syscall paths (dmesg/journalctl/
 kmsg reads, rmmod, insmod, unbind) enter multi-ten-second transient wedges
 - the host needs a reboot soon; /tmp build dirs get wiped, rebuild from
 kmod/raw0 after boot.
+
+## THE WALL FALLS: real control reads served (ioctl-number root cause)
+ROOT CAUSE OF THE NIGHT'S "DEAF ROM": session-inline tests used ioctl 0x5514
+believing it was USBDEVFS_CONTROL. It is USBDEVFS_RESET (_IO('U', 20)).
+Every "read" was a port reset (~237ms, returns 0, no URB, no data, no usbmon
+S-lines - all consistent). The reset-storms re-enumerated the device
+countless times; each unguarded enum finale (SET_CONFIGURATION) wedged the
+ROM into a zombie that ACKs everything with zero data - and my storm caused
+the port-migration flaps. The rom was healthy the whole time.
+CORRECT NUMBER: USBDEVFS_CONTROL = _IOWR('U', 0, ctrltransfer) = 0xC0185500.
+WITH the corrected number + THE GUARD (ftrace on usb_set_configuration ->
+stub -EOPNOTSUPP for the iPad; BSR forcing retired), the sequence
+reset-with-guard-armed -> real control read returned
+"ret=182 in 1ms" - the full CPID serial string. THE ROM NOW SERVES REAL
+USBFS CONTROL READS POST-ENUM, STABLE.
+Nota bene: tools/exploit-cancels.py always had the CORRECT control number,
+so the ledger's userspace-cancel dead-end verdict remains valid (userspace
+cancel timing was genuinely unfit). The module's LEAK ioctl (kernel-internal
+URB + hrtimer cancel) was never affected by this bug.
+NEXT: validate the LEAK primitive on the now-healthy ROM (leak cycle then
+serve-check, scale stepwise), then the 620-request feng-shui and stages 2/3.

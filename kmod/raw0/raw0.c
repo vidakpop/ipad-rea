@@ -1001,6 +1001,15 @@ static long raw0_readback(unsigned long arg)
 	if (!staging_mapped) {
 		rb.status = 1;
 		memset(rb.data, 0, sizeof(rb.data));
+	} else if (staging_use_coh && coh_buf) {
+		/* coherent fallback: coh_buf is the actual DMA target for
+		 * IN-direction data phases (the ARMED-QUALITY instrument:
+		 * what the device actually served into the read buffer). */
+		rb.status = 0;
+		memcpy(rb.data, coh_buf, rb.len);
+		if (rb.len < RAW0_MAX_DATA)
+			memset(rb.data + rb.len, 0,
+			       RAW0_MAX_DATA - rb.len);
 	} else {
 		rb.status = 0;
 		memcpy(rb.data, staging, rb.len);

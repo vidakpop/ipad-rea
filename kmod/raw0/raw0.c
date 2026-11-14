@@ -174,6 +174,9 @@ static struct usb_device *g_udev; /* captured alongside, for URB submits */
 static DEFINE_MUTEX(raw0_mtx);
 static void *staging;          /* kernel buffer for data phase */
 static dma_addr_t staging_dma;
+static void *coh_buf;          /* coherent fallback (pre-mapped IOVA) */
+static dma_addr_t coh_dma;
+static int staging_use_coh;
 static int staging_mapped;     /* persistent once the xhci is known:
                                 * dangling TDs keep the xHC fetching
                                 * staging long after the ioctl returns,
@@ -448,11 +451,28 @@ static int raw0_push(const struct raw0_txn *t)
 			staging_dma = dma_map_single(dma_dev, staging,
 				RAW0_MAX_DATA, DMA_BIDIRECTIONAL);
 			if (dma_mapping_error(dma_dev, staging_dma)) {
-				rc = -EIO;
-				goto out;
+				/*
+				 * AMD-Vi runtime-map failure class (measured
+				 * Nov 14: READBACK status=1, every push
+				 * -EIO). Fall back to a COHERENT allocation:
+				 * dma_alloc_coherent carries a pre-mapped
+				 * IOVA, independent of the streaming map.
+				 */
+				coh_buf = dma_alloc_coherent(dma_dev,
+					RAW0_MAX_DATA, &coh_dma, GFP_KERNEL);
+				if (!coh_buf) {
+					rc = -EIO;
+					goto out;
+				}
+				staging_dma = coh_dma;
+				staging_use_coh = 1;
+				staging_mapped = 1;
+			} else {
+				staging_mapped = 1;
 			}
-			staging_mapped = 1;
 		}
+		if (staging_use_coh)
+			memcpy(coh_buf, staging, RAW0_MAX_DATA);
 	} else if (t->has_data) {
 	}
 	wmb();
@@ -1290,11 +1310,16 @@ static void __exit raw0_exit(void)
 	kfree(leak_data);
 	if (leak_udev)
 		usb_put_dev(leak_udev);
-	if (staging_mapped && g_xhci)
+	if (staging_use_coh && coh_buf && g_xhci) {
+		dma_free_coherent(xhci_to_hcd(g_xhci)->self.sysdev,
+		                 RAW0_MAX_DATA, coh_buf, coh_dma);
+	} else if (staging_mapped && g_xhci) {
 		dma_unmap_single(xhci_to_hcd(g_xhci)->self.sysdev,
 		                 staging_dma, RAW0_MAX_DATA,
 		                 DMA_BIDIRECTIONAL);
+	}
 	staging_mapped = 0;
+	staging_use_coh = 0;
 	kfree(staging);
 	device_destroy(raw0_class, raw0_devt);
 	class_destroy(raw0_class);

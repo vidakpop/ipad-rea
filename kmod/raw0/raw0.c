@@ -483,7 +483,10 @@ static int raw0_push(const struct raw0_txn *t)
 
 	/* SETUP TRB: len 8, IDT immediate data, TX type from direction */
 	{
-		u32 setup_ctl = TRB_TYPE(TRB_SETUP) | TRB_IDT | TRB_CHAIN;
+		/* no TRB_CHAIN on SETUP: kernel's own SETups on this chip carry no
+ * chain (w3 0x30841-class, measured from retired TDs); the fetch
+ * engine froze at our chained SETUP (0x30851, hwdeq pinned, ep STOPPED) */
+		u32 setup_ctl = TRB_TYPE(TRB_SETUP) | TRB_IDT;
 
 		if (t->has_data)
 			setup_ctl |= TRB_TX_TYPE(t->dir_in ? TRB_DATA_IN :
@@ -664,7 +667,10 @@ static int raw0_cyc(const struct raw0_cyc *c)
 	}
 	setup_param = le64_to_cpu(*(__le64 *)c->setup);
 	{
-		u32 setup_ctl = TRB_TYPE(TRB_SETUP) | TRB_IDT | TRB_CHAIN;
+		/* no TRB_CHAIN on SETUP: kernel's own SETups on this chip carry no
+ * chain (w3 0x30841-class, measured from retired TDs); the fetch
+ * engine froze at our chained SETUP (0x30851, hwdeq pinned, ep STOPPED) */
+		u32 setup_ctl = TRB_TYPE(TRB_SETUP) | TRB_IDT;
 		if (c->has_data)
 			setup_ctl |= TRB_TX_TYPE(c->dir_in ? TRB_DATA_IN :
 			                          TRB_DATA_OUT);

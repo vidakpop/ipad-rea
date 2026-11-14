@@ -117,7 +117,7 @@ def main():
             595, 610, 625, 640, 655, 500, 500, 500]
     hit = None
     stalled = False
-    for shot in range(900):
+    for shot in range(200):
         t = zone[shot % len(zone)]
         try:
             rc, info = usb.raw_ctrl(handle, 0x80, 6, (3 << 8) | 3, 0x040A,
@@ -138,39 +138,28 @@ def main():
                 return 1
             continue
         status, actual, cancel_rc, elapsed = info
+        print("shot%-3d t=%d: %-9s actual=%-3d %dus"
+              % (shot, t, d.STATUS_NAMES[status], actual, elapsed),
+              flush=True)
         if 0 < actual < 128:
-            print("shot%d t=%d: MID-DATA CUT actual=%d elapsed=%dus"
-                  % (shot, t, actual, elapsed), flush=True)
-        if status == 4:  # STALL: the endgame signature
-            print("shot%d: STALL detected - firing stage-2 suite NOW"
-                  % shot, flush=True)
+            print(">>> MID-DATA CUT at shot%d t=%d" % (shot, t), flush=True)
+            hit = (shot, t)
+        if status == 4:  # STALL endgame signature
+            print(">>> STALL endgame at shot%d - stage-2 suite NOW" % shot,
+                  flush=True)
             stalled = True
             break
-        if shot % 50 == 49:
-            # inline probe: is the device in stall-loop?
-            try:
-                rc3, info3 = usb.raw_ctrl(handle, 0x80, 6, 0x0100, 0, 0x12,
-                                          b'', abandon=False, timeout_ms=300,
-                                          name='probe')
-                if info3[0] == 4:
-                    print("probe STALL at shot%d - stage-2 suite NOW" % shot,
-                          flush=True)
-                    stalled = True
-                    break
-                print("  ..%d shots: probe %s actual=%d"
-                      % (shot + 1, d.STATUS_NAMES[info3[0]], info3[1]),
-                      flush=True)
-            except SystemExit:
-                print("  ..%d shots: probe HANG" % (shot + 1), flush=True)
-        time.sleep(0.012)
+        time.sleep(0.65)
     if stalled:
         stage2_suite(usb, handle)
         for probe in range(3):
             time.sleep(0.6)
             print("  post%.1fs: %s" % (0.6 * (probe + 1), serve_probe()),
                   flush=True)
-    elif not hit:
-        print("no cut/stall landed in 900 shots")
+    elif hit:
+        print("cuts landed: %r (window hunt incomplete - see log)" % hit)
+    else:
+        print("no cut/stall landed")
     return 0
 
 

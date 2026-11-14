@@ -1173,7 +1173,7 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		struct raw0_who w;
 		memset(&w, 0, sizeof(w));
 		if (g_udev) {
-			w.busnum = g_udev->busnum;
+			w.busnum = g_udev->bus ? g_udev->bus->busnum : 0;
 			w.devnum = g_udev->devnum;
 			w.vid = le16_to_cpu(g_udev->descriptor.idVendor);
 			w.pid = le16_to_cpu(g_udev->descriptor.idProduct);

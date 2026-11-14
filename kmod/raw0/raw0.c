@@ -802,8 +802,25 @@ out:
 	/* every TRB we ever pushed has been consumed by the xHC once the
 	 * cycle completes (halted SETUP executed after recovery, data
 	 * phase served, previous dangles left behind on the wire) */
-	if (rc >= 0)
+	if (rc >= 0) {
 		g_cyc_outstanding = 0;
+		/*
+		 * CYC v2 reconciliation. The queued_deq_seg/ptr handoff
+		 * above assumes the kernel's own command-completion handler
+		 * consumes it (xhci_handle_cmd_set_deq), but the kernel
+		 * SKIPS unclaimed command events (this command was queued by
+		 * the module, not in the kernel's pending list), so the
+		 * kernel's ring->dequeue never advances past module TDs.
+		 * This kernel computes free space live in xhci_num_trbs_free()
+		 * from ring->dequeue vs ring->enqueue, so every later kernel
+		 * submit is rejected (-7 class, measured Nov 15 00:25).
+		 * Post-recovery truth: all module TDs are retired, the ring
+		 * is empty -> dequeue == enqueue. Write it directly.
+		 */
+		wmb();
+		ring->dequeue = ring->enqueue;
+		ring->deq_seg = ring->enq_seg;
+	}
 	mutex_unlock(&raw0_mtx);
 	return rc;
 }

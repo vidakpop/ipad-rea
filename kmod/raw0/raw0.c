@@ -52,6 +52,14 @@
 #define RAW0_IOC_DBELL  _IOW(RAW0_IOCBASE, 8, struct raw0_dbell)
 #define RAW0_IOC_ADDR0  _IO(RAW0_IOCBASE, 9)
 #define RAW0_IOC_RESETDEV _IO(RAW0_IOCBASE, 10)
+#define RAW0_IOC_WHO _IOR(RAW0_IOCBASE, 11, struct raw0_who)
+
+struct raw0_who {
+	__u32 busnum;   /* captured usb_device's bus */
+	__u32 devnum;    /* captured usb_device's address (+ 0xFFFF... = none) */
+	__u32 vid;
+	__u32 pid;
+} __attribute__((packed));
 
 #define RAW0_MAX_DATA 0x1000
 #define RAW0_DUMP_TRBS 48
@@ -1160,6 +1168,20 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return raw0_addr0();
 	case RAW0_IOC_RESETDEV:
 		return raw0_reset_dev();
+	case RAW0_IOC_WHO:
+	{
+		struct raw0_who w;
+		memset(&w, 0, sizeof(w));
+		if (g_udev) {
+			w.busnum = g_udev->busnum;
+			w.devnum = g_udev->devnum;
+			w.vid = le16_to_cpu(g_udev->descriptor.idVendor);
+			w.pid = le16_to_cpu(g_udev->descriptor.idProduct);
+		}
+		if (copy_to_user((void __user *)arg, &w, sizeof(w)))
+			return -EFAULT;
+		return 0;
+	}
 	case RAW0_IOC_STATE:
 		memset(&st, 0, sizeof(st));
 		st.xhci_addr = (u64)(uintptr_t)g_xhci;

@@ -724,3 +724,28 @@ NEXT SESSION - CYC v2 (the one patch that un-locks everything):
   CYC payload -> reset -> PWND verify.
 - FINAL3 needs no new primitives: every shape is proven individually
   (tonight's ledger entries); only the reconciliation is new code.
+
+## Nov 15 01:0x: FINAL3 END-TO-END - the complete sequence runs from this host
+Three full-final runs tonight (00:37, 00:50, 01:0x), all landing every phase:
+  spray 619/619 CYC armed-leaks (2.4s!) + final 0x81 CYC
+  step-2: set-state/zero-DNLOAD/2x GETSTATUS via module with-status
+  pushes rc=0 (after the seg-check retirement patch, commit 2361976)
+  knife-edge CYC (dnL wLength 0x700, data 0x6C0, no status) rc=0
+  P2 port reset (heap persists, kernel world reborn, hook re-captures)
+  stage-3: crit-IN CYC + UAF-write CYC + payload CYC, all rc=0
+  final reset + kernel verify - serial serves clean every time
+Spray classes both proven: one-packet (0x40) and sketch-exact full-serve
+(0x80, commit c60736a).
+VERDICT: not pwned, zero corruption signatures. The ROM processes the
+entire sequence politely - the UAF write lands where the heap is not
+geometrically arranged to convert it. The delivery wall is CLOSED; the
+remaining problem is a parameter sweep:
+NEXT CAMPAIGN: the padding sweep (the port's own prescription):
+--knife-pad 0x40..0x780 step 0x40, one fresh dance + 90s run each,
+both spray classes. 29 x 2 dances. Optionally --leak sweep (610-630).
+Also to instrument: a slide-verify of the crit-IN armed quality via the
+module staging CONTENTS (the coherent buffer class - READBACK reads the
+kmalloc staging, not coh_buf; patch READBACK or add a COH readback).
+Infrastructure triage note: after tonight's many cycles, expect the
+module/accounting machinery to want a REBOOT before the campaign
+(fresh kernel world + fresh ring walks).

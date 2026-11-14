@@ -508,9 +508,11 @@ static int raw0_push(const struct raw0_txn *t)
 			goto unlock;
 	}
 
-	/* doorbell: EP0 target = 1 for the captured slot.
-	 * dba->doorbell[] is slot-1-indexed: slot N -> doorbell[N-1] */
-	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
+	/* doorbell: EP0 target = 1 for the captured slot. The dba->doorbell[]
+	 * array is SLOT-N-INDEXED (kernel's xhci_ring_ep_doorbell does
+	 * &xhci->dba->doorbell[slot_id]; index 0 is the HOST/command-ring
+	 * bell - do not ever ring that one). */
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
 
 unlock:
 	if (rc == 0)
@@ -661,7 +663,7 @@ static int raw0_cyc(const struct raw0_cyc *c)
 			off += chunk;
 		}
 	}
-	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
 	g_cyc_outstanding += trbs;
 unlock:
 	spin_unlock_irqrestore(&xhci->lock, flags);
@@ -761,7 +763,7 @@ unlock:
 	 * Also poll the state AFTER ringing: the first cycle after a
 	 * fresh enum may need the kick. */
 	spin_lock_irqsave(&xhci->lock, flags);
-	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
 	spin_unlock_irqrestore(&xhci->lock, flags);
 	t0 = ktime_get();
 	while (ktime_us_delta(ktime_get(), t0) < 3000) {
@@ -1062,19 +1064,22 @@ static long raw0_reset_dev(void)
 		return rc;
 	}
 
+	/* slot ctx dev_state: addr = LOW BYTE (DEV_ADDR_MASK 0xff),
+	 * slot state = bits 27-31. Reset Device success: addr==0 and
+	 * state==SLOT_STATE_DEFAULT(1). */
 	sc = (__le32 *)(xhci->devs[g_slot]->out_ctx->bytes + 12);
 	for (i = 0; i < 50; i++) {
 		msleep(2);
 		w = le32_to_cpu(*sc);
-		if (((w >> 25) & 0x7f) == 0)
+		if ((w & 0xff) == 0)
 			break;
 	}
 	w = le32_to_cpu(*sc);
-	pr_info("raw0: RESET_DEV done: dev_state=%08x addr=%u after %dms\n",
-		w, (w >> 25) & 0x7f, (i + 1) * 2);
+	pr_info("raw0: RESET_DEV done: dev_state=%08x addr=%u state=%u after %dms\n",
+		w, w & 0xff, (w >> 27) & 0x1f, (i + 1) * 2);
 	cmd->status = 0;
 	p_free_cmd(xhci, cmd);
-	return (((w >> 25) & 0x7f) == 0) ? 0 : -ETIMEDOUT;
+	return ((w & 0xff) == 0) ? 0 : -ETIMEDOUT;
 }
 
 static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)

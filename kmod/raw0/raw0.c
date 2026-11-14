@@ -508,8 +508,9 @@ static int raw0_push(const struct raw0_txn *t)
 			goto unlock;
 	}
 
-	/* doorbell: EP0 target = 1 for the captured slot */
-	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
+	/* doorbell: EP0 target = 1 for the captured slot.
+	 * dba->doorbell[] is slot-1-indexed: slot N -> doorbell[N-1] */
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
 
 unlock:
 	if (rc == 0)
@@ -660,7 +661,7 @@ static int raw0_cyc(const struct raw0_cyc *c)
 			off += chunk;
 		}
 	}
-	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot]);
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
 	g_cyc_outstanding += trbs;
 unlock:
 	spin_unlock_irqrestore(&xhci->lock, flags);
@@ -755,14 +756,20 @@ unlock:
 		}
 	}
 
-	/* poll for Running */
+	/* After Set TR Dequeue from Halted the EP sits in Stopped(3).
+	 * Per xHCI 4.6.10 the doorbell transitions Stopped -> Running.
+	 * Also poll the state AFTER ringing: the first cycle after a
+	 * fresh enum may need the kick. */
+	spin_lock_irqsave(&xhci->lock, flags);
+	writel(DB_VALUE(0, 0), &xhci->dba->doorbell[g_slot - 1]);
+	spin_unlock_irqrestore(&xhci->lock, flags);
 	t0 = ktime_get();
 	while (ktime_us_delta(ktime_get(), t0) < 3000) {
 		if (raw0_ep0_state(xhci, g_slot) == 1)
 			break;
 		udelay(20);
 	}
-	rc = 0;
+	rc = (raw0_ep0_state(xhci, g_slot) == 1) ? 0 : -EAGAIN;
 out:
 	/* every TRB we ever pushed has been consumed by the xHC once the
 	 * cycle completes (halted SETUP executed after recovery, data

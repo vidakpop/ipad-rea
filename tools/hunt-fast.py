@@ -80,6 +80,30 @@ def wait_dfu(timeout=900):
     return False
 
 
+def stage2_suite(usb, handle):
+    """The stage-2 ladder, fired while the STALL endgame state is hot."""
+    tests = [
+        ('dfu-getstatus', 0xA1, 3, 0, 0, 6, b''),
+        ('dfu-getstate',  0xA1, 5, 0, 0, 1, b''),
+        ('dfu-dnload0',   0x21, 1, 0, 0, 0, b''),
+        ('dfu-abort',     0x21, 6, 0, 0, 0, b''),
+        ('bogus-0x00-64', 0x00, 0, 0, 0, 0x40, b'D' * 64),
+        ('dnload-w40-d40', 0x21, 1, 0, 0, 0x40, b'K' * 0x40),
+        ('dnload-w40-d80', 0x21, 1, 0, 0, 0x40, b'L' * 0x80),
+        ('desc-dev18',    0x80, 6, 0x0100, 0, 0x12, b''),
+    ]
+    for name, r, b, w, i, l, data in tests:
+        try:
+            rc, info = usb.raw_ctrl(handle, r, b, w, i, l, data,
+                                    abandon=False, timeout_ms=600, name=name)
+            print("S2 %-16s: %s actual=%d elapsed=%dus%s"
+                  % (name, d.STATUS_NAMES[info[0]], info[1], int(info[3]),
+                     "  <<< ANOMALY" if info[0] == 0 and info[1] not in (0, l) else ""),
+                  flush=True)
+        except SystemExit as e:
+            print("S2 %-16s: HANG" % name, flush=True)
+
+
 def main():
     if not wait_dfu():
         print("no DFU entry")
@@ -92,6 +116,7 @@ def main():
     zone = [430, 445, 460, 475, 490, 505, 520, 535, 550, 565, 580,
             595, 610, 625, 640, 655, 500, 500, 500]
     hit = None
+    stalled = False
     for shot in range(900):
         t = zone[shot % len(zone)]
         try:
@@ -100,7 +125,7 @@ def main():
                                     abandon_timeout_ms=t / 1000.0,
                                     timeout_ms=500, name='hunt%d' % shot)
         except SystemExit as e:
-            print("shot%d t=%d HANG (%s)" % (shot, t, e))
+            print("shot%d t=%d HANG" % (shot, t), flush=True)
             try:
                 usb.release(handle)
             except Exception:
@@ -115,32 +140,37 @@ def main():
         status, actual, cancel_rc, elapsed = info
         if 0 < actual < 128:
             print("shot%d t=%d: MID-DATA CUT actual=%d elapsed=%dus"
-                  % (shot, t, actual, elapsed))
-            # WITNESS - fire the continuation immediately
-            t0 = time.perf_counter()
-            try:
-                rc2, info2 = usb.raw_ctrl(handle, 0x00, 0x00, 0, 0, 0x40,
-                                         b'C' * 64, abandon=False,
-                                         timeout_ms=600,
-                                         name='continuation')
-                s2, a2 = info2[0], info2[1]
-                lag = (time.perf_counter() - t0) * 1000
-                verdict = "CONTINUATION ACKED" if rc2 == 0 and s2 == 0 else \
-                          "abnormal %s" % d.STATUS_NAMES.get(s2, s2)
-                print("CONTINUATION: status=%s actual=%d lag=%.1fms << %s"
-                      % (d.STATUS_NAMES.get(s2, s2), a2, lag, verdict))
-            except SystemExit as e:
-                print("CONTINUATION: HANG (%s)" % e)
-            for probe in range(3):
-                time.sleep(0.6)
-                print("  post%.1fs: %s" % (0.6 * (probe + 1), serve_probe()))
-            hit = (t, actual)
+                  % (shot, t, actual, elapsed), flush=True)
+        if status == 4:  # STALL: the endgame signature
+            print("shot%d: STALL detected - firing stage-2 suite NOW"
+                  % shot, flush=True)
+            stalled = True
             break
         if shot % 50 == 49:
-            print("  ..%d shots, last %s actual=%d" % (shot + 1, d.STATUS_NAMES[status], actual), flush=True)
+            # inline probe: is the device in stall-loop?
+            try:
+                rc3, info3 = usb.raw_ctrl(handle, 0x80, 6, 0x0100, 0, 0x12,
+                                          b'', abandon=False, timeout_ms=300,
+                                          name='probe')
+                if info3[0] == 4:
+                    print("probe STALL at shot%d - stage-2 suite NOW" % shot,
+                          flush=True)
+                    stalled = True
+                    break
+                print("  ..%d shots: probe %s actual=%d"
+                      % (shot + 1, d.STATUS_NAMES[info3[0]], info3[1]),
+                      flush=True)
+            except SystemExit:
+                print("  ..%d shots: probe HANG" % (shot + 1), flush=True)
         time.sleep(0.012)
-    if not hit:
-        print("no cut landed in 140 shots")
+    if stalled:
+        stage2_suite(usb, handle)
+        for probe in range(3):
+            time.sleep(0.6)
+            print("  post%.1fs: %s" % (0.6 * (probe + 1), serve_probe()),
+                  flush=True)
+    elif not hit:
+        print("no cut/stall landed in 900 shots")
     return 0
 
 

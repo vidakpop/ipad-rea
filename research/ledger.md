@@ -701,3 +701,26 @@ is exclusively the stage-3 write class.
 7. The 23:46/23:54 module rebuilds WORK (CYC + symbols resolve at init);
    the earlier -EIO confusion was the seg-check + stale accounting, not
    the rebuilds.
+
+## Nov 15 00:30: The interleave falsification and the CYC v2 plan
+Probe (against the live post-run device): ONE CYC cycle rc=0, then:
+kernel GETSTATUS rc=-7, kernel serial GET rc=-7. The kernel-URB path is
+PERMANENTLY dead after any CYC: the kernel's xhci_virt_ep free-space
+accounting never saw the module's TRBs (the module queued them directly),
+so its cached counters disagree forever; all subsequent kernel submits
+are rejected instantly (-7 class, not a hang).
+Consequence: the full sketch sequence (which needs BOTH worlds interleaved:
+CYC armed shapes + kernel-complete controls + bus reset/enumeration/verify)
+cannot run until the module reconciles the kernel bookkeeping after each
+Set-TR-Deq recovery.
+NEXT SESSION - CYC v2 (the one patch that un-locks everything):
+- in raw0_cyc's recovery path, after Set-TR-Deq: update the kernel's
+  xhci_virt_ep accounting (num_trbs_free class fields) to the module's
+  post-recovery view. Verify with: CYC -> usbfs GETSTATUS must serve
+  (rc=6, 6 bytes). Then FINAL3: 620x CYC armed-leak spray -> module
+  set-state/zero-DNLOAD/GETSTATUS with status -> CYC knife-edge
+  (dnL wLength 0x700, data 0x6C0, no status) -> bus reset via module
+  RESETDEV -> re-entry hook -> CYC crit-IN 0x81 -> CYC UAF write ->
+  CYC payload -> reset -> PWND verify.
+- FINAL3 needs no new primitives: every shape is proven individually
+  (tonight's ledger entries); only the reconciliation is new code.

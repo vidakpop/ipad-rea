@@ -824,3 +824,29 @@ was host-side theater; from here TDs are fetched for real.
 
 Next: pwn-final3.py full sequence on a fresh dance (heap feng shui
 must start from a pristine chip DFU heap).
+
+## 2026-11-15 02:2x EAT — window mechanics pinned; padding dial identified
+
+Stage 3 fired live for the first time but missed. The measured truths:
+
+1. The kernel's own failed usb_reset_device() left the port wedged
+   (ccs=1 ped=0) with the device invisible - but the chip DID receive
+   the wire reset, aborted the held knife-edge, re-entered DFU and
+   reattached 4 times (device numbers 43-46), serving poisoned-garbage
+   descriptor reads (-90/-75 babble: the corrupted handler serves
+   ~0x80 bytes regardless of wLength). The heap spray SURVIVES these
+   re-entries.
+2. raw0reset.ko (new, kmod/raw0reset/): PCI-direct PORTSC PR assert,
+   no hooks - generates the change event khubd needs. PR = a portable
+   "re-enter DFU without losing the spray" button.
+3. raw0 IOC12 PORTRESET: same, but through the module's captured port.
+4. Serving windows are rare (~1/3-1/8 of re-entries) and stale-capture
+   traps abound (state=1 with a dead ring = theater). stage6's sweep
+   (AA-staged probe spam + readback per shot) catches windows
+   reliably: round 0 = served in 27 shots, ARM crit-IN served the
+   full poisoned descriptor+serial heap garbage.
+5. UAF/payload both pushed (rc=0) through the same window; no PWND.
+   Chip survived (wrong-floor smash) - and the original tool's own hint
+   names the dial: padding sweep 0x40..0x780, DEFAULT 0x6C0 -
+   "overwrite offset in io_buffer". Our fires used 0x40.
+   stage7 sweeps outward from 0x6C0.

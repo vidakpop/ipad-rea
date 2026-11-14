@@ -53,12 +53,19 @@
 #define RAW0_IOC_ADDR0  _IO(RAW0_IOCBASE, 9)
 #define RAW0_IOC_RESETDEV _IO(RAW0_IOCBASE, 10)
 #define RAW0_IOC_WHO _IOR(RAW0_IOCBASE, 11, struct raw0_who)
+#define RAW0_IOC_PORTRESET _IOWR(RAW0_IOCBASE, 12, struct raw0_portreset)
 
 struct raw0_who {
 	__u32 busnum;   /* captured usb_device's bus */
 	__u32 devnum;    /* captured usb_device's address (+ 0xFFFF... = none) */
 	__u32 vid;
 	__u32 pid;
+} __attribute__((packed));
+struct raw0_portreset {
+	__u32 action;    /* 0 = read PORTSC, 1 = assert hardware port reset */
+	__u32 before;    /* out: PORTSC before the action */
+	__u32 after;    /* out: PORTSC after (action 1) */
+	__u32 pad;
 } __attribute__((packed));
 
 #define RAW0_MAX_DATA 0x1000
@@ -1144,6 +1151,60 @@ static long raw0_reset_dev(void)
 	return ((w & 0xff) == 0) ? 0 : -ETIMEDOUT;
 }
 
+/* Hardware root-hub port reset via PORTSC MMIO. The kernel's own
+ * usb_reset_device() deadlocks against a held knife-edge transfer (it
+ * waits for in-flight URBs the wedged device will never complete); we
+ * own the chip, so we assert PR ourselves and let the xHC self-clear.
+ * The device re-enters DFU (wire-level), khubd re-enumerates, the hook
+ * re-captures. The on-chip heap is untouched by all of this. */
+static int raw0_portreset_op(struct raw0_portreset *pr)
+{
+	struct xhci_hub *rhub;
+	struct xhci_port *port;
+	void __iomem *portsc;
+	u32 val;
+	int i;
+
+	if (!g_xhci || !g_udev)
+		return -ENODEV;
+
+	rhub = (g_udev->speed >= USB_SPEED_SUPER) ?
+		&g_xhci->usb3_rhub : &g_xhci->usb2_rhub;
+	if (!rhub || !rhub->ports || g_udev->portnum < 1 ||
+	    (unsigned)g_udev->portnum > rhub->num_ports)
+		return -ENODEV;
+	port = rhub->ports[g_udev->portnum - 1];
+	if (!port || !port->port_reg)
+		return -ENODEV;
+	portsc = &port->port_reg->portsc;
+
+	val = readl(portsc);
+	pr->before = val;
+	if (pr->action == 0)
+		return 0;
+
+	/* Assert Port Reset (self-clearing). Writing back change bits (CSC,
+	 * PEC, ...) as 1 clears stale notifications; khubd sees fresh ones
+	 * from the reset itself. */
+	writel(val | PORT_RESET, portsc);
+	for (i = 0; i < 250; i++) {
+		msleep(2);
+		val = readl(portsc);
+		if (!(val & PORT_RESET))
+			break;
+	}
+	for (i = 0; i < 150; i++) {
+		val = readl(portsc);
+		if (val & PORT_CONNECT)
+			break;
+		msleep(2);
+	}
+	pr->after = val;
+	pr_info("raw0: PORTRESET port=%d before=%08x after=%08x\n",
+		g_udev->portnum, pr->before, pr->after);
+	return 0;
+}
+
 static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct raw0_txn t;
@@ -1216,6 +1277,18 @@ static long raw0_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		if (copy_to_user((void __user *)arg, &st, sizeof(st)))
 			return -EFAULT;
 		return 0;
+	case RAW0_IOC_PORTRESET:
+	{
+		struct raw0_portreset pr;
+		int rc;
+
+		if (copy_from_user(&pr, (void __user *)arg, sizeof(pr)))
+			return -EFAULT;
+		rc = raw0_portreset_op(&pr);
+		if (copy_to_user((void __user *)arg, &pr, sizeof(pr)))
+			return -EFAULT;
+		return rc;
+	}
 	}
 	return -EINVAL;
 }

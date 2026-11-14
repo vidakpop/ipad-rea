@@ -44,10 +44,10 @@ def main():
 
     st = mod_state()
     tries = 0
-    while (not st['state'] or not st['ep0']) and tries < 3:
+    while not st['state'] and tries < 3:
         tries += 1
-        print('[stage3] capture stale (state=%d ep0=0x%x) - port reset #%d'
-              % (st['state'], st['ep0'], tries))
+        print('[stage3] capture flag down (state=%d) - port reset #%d'
+              % (st['state'], tries))
         dev0, h0, d0, s0 = P.acquire(usb, want_serial=False)
         if dev0:
             usb.reset(h0)
@@ -55,9 +55,12 @@ def main():
             usb.lib.libusb_close(h0)
         time.sleep(1.5)
         st = mod_state()
-    if not st['state'] or not st['ep0']:
-        print('[module] STILL NOT LIVE after resets - aborting before writes')
+    if not st['state']:
+        print('[module] NOT CAPTURED after resets - need module reload + '
+              'fresh dance; aborting before writes')
         return 1
+    # NOTE: the ep0 state print is an offset-suspect field; the push's own
+    # return code is the verdict on ring health.
 
     # open the device (libusb open = no control traffic)
     dev, handle, desc, serial = P.acquire(usb, want_serial=False)
@@ -72,12 +75,29 @@ def main():
                      dir_in=1, fd=fd_raw)
     print('[stage3] armed crit-IN push: rc=%d' % rc)
     if rc != 0:
-        st = mod_state()
-        print('[stage3] push failed; re-check state above, retry once')
+        # ring forensics: is the ring view healthy enough to retry?
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import importlib.util as _ilu
+            _sp = _ilu.spec_from_file_location(
+                'pf', os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   'push-forensics.py'))
+            PF = _ilu.module_from_spec(_sp)
+            _sp.loader.exec_module(PF)
+            head, vals = PF.ringdump(fd_raw)
+            print('[ring] enq=%d cyc=%d hwdeq=0x%x epst=0x%x slot=%d'
+                  % (head['enq'], head['cyc'], head['hwdeq'], head['epst'],
+                     head['slot']))
+            PF.pr_rows(vals, head, 0, 8)
+        except Exception as e:
+            print('[ring] dump failed: %r' % (e,))
         time.sleep(0.5)
         rc = R.raw0_push(crit_setup, b'\x00' * 0x41, has_data=1,
                          has_status=0, dir_in=1, fd=fd_raw)
         print('[stage3] armed crit-IN retry: rc=%d' % rc)
+    if rc != 0:
+        print('[stage3] push failed twice - fresh module load + dance needed')
+        return 1
 
     usb.claim(handle)
 

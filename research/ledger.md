@@ -890,3 +890,21 @@ host-side route.
 Also tonight: RESET_DEV fired on wedged slots crashed the kernel
 TWICE - banned from any automated loop (strictly once per LIVE
 capture epoch, or never).
+
+## 2026-11-15 10:3x EAT — OTA SABBATH DAY: blobs saved while Apple signs
+
+Apple's TSS servers confirmed SIGNING for this exact device TODAY:
+  iOS 8.4.1 (12H321): SAVED -> saved/shsh/2114197851534_iPad2,1_k93ap_8.4.1-12H321_d49808eec9461c572da9ea731d4773c02f81012f.shsh2
+  iOS 6.1.3 (10B329): SAVED -> saved/shsh/2114197851534_iPad2,1_k93ap_6.1.3-10B329_f266ebc362f00cf4455f779e159b27e8fe12df36.shsh2
+(ECID 0x1EC40030D8E / dec 2114197851534; wifi-only, no baseband ticket)
+
+Method: Legacy-iOS-Kit (LukeZGD, cloned fresh) bundled tsschecker
+with -o (OTA) + the kit's own BuildManifests, no device attached.
+These are per-ECID, offline-replayable: immune to the next
+signing-flip (see the 2026-07-08 unsigning event, restored 07-09).
+
+Strategy recorded: per research/alt-os-ipad2.md the endgame chain is
+EverPwnage (untethered 9.3.5) -> OpenSSH -> boot/enter-kdfu (software
+pwned DFU) -> boot/boot-linux.sh (Cascadia Linux 6.12 RAM boot).
+Host-only checkm8: parked, per three independent sources + our own
+wire evidence saying the same (PC-host timing walls).

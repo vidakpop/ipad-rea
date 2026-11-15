@@ -120,8 +120,15 @@ static int __init r0r_init(void)
 			msleep(2);
 		}
 	}
-	pr_info("r0r: port %d final PORTSC %08x ccs=%u ped=%u speed=%s\n",
-		target, v, v & 1, (v >> 2) & 1, decode_speed(v));
+	/* Consume the change bits ourselves (write-1-clear). khubd gave up
+	 * on this port earlier and never consumed CSC; with CSC stuck at 1
+	 * no later change can produce a 0->1 edge, so hub interrupts stopped
+	 * firing and khubd never noticed any of our PRs. Clearing CSC/PEC
+	 * re-arms the change-detect edge for the next event. */
+	writel(v | 0x2u | 0x8u, ps);
+	v = readl(ps);
+	pr_info("r0r: port %d final PORTSC %08x ccs=%u ped=%u csc=%u speed=%s\n",
+		target, v, v & 1, (v >> 2) & 1, (v >> 1) & 1, decode_speed(v));
 	return 0;
 }
 

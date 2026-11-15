@@ -871,3 +871,22 @@ Post-reboot truths:
    rb), UAF(1792B) rc=0, payload rc=0, PR, verify - not pwned. Chip
    went dark-class after the fire (wrong-floor smash survived).
    Next pads: 0x700, 0x680, 0x740... one real fire per window.
+
+## 2026-11-15 10:1x EAT — checkra1n refuses iPad 2 outright
+
+checkra1n beta 0.12.4 (linux CLI, official assets.checkra.in - still
+hosted, 2024-era last-modified) against the device in DFU:
+
+  "Attempting to perform checkm8 on 8940 21..."
+  "Yeah I don't think this device is supported, sorry. (error code: -41)"
+  "Unable to perform checkm8: ffffffff (error code: -21)"
+
+CPID/CPRV recognized; the refusal is a hard device-database gate
+(error -41) before any USB exploit sequence runs. iPad 2 (BDID 04)
+never was in checkra1n's supported list. The 'easier way' is closed
+for this device - the custom interleave remains the only A5/iPad2
+host-side route.
+
+Also tonight: RESET_DEV fired on wedged slots crashed the kernel
+TWICE - banned from any automated loop (strictly once per LIVE
+capture epoch, or never).

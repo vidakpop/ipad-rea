@@ -850,3 +850,24 @@ Stage 3 fired live for the first time but missed. The measured truths:
    names the dial: padding sweep 0x40..0x780, DEFAULT 0x6C0 -
    "overwrite offset in io_buffer". Our fires used 0x40.
    stage7 sweeps outward from 0x6C0.
+
+## 2026-11-15 07:5x EAT — kretprobe capture; pad-0x6C0 fired through a live window
+
+Post-reboot truths:
+1. The ftrace IPMODIFY hook is inert after the second reboot; replaced the
+   capture path with a KRETPROBE on xhci_alloc_dev (entry data: hcd+udev;
+   return handler: retval==1 + udev->slot_id). Capture verified live:
+   'kret capture: slot=1 xhci=... devnum=0' per attempt. Note: a plain
+   kprobe post_handler fires at entry+1 (ax/ax-slot_id not yet
+   meaningful) - kretprobe required.
+2. Attempts ladder post-reboot: ~25-30 tries then khubd gives up;
+   unplug/replug restores the full ladder (100% proven). Our PR +
+   write-1-clear of CSC/PEC generates single attempts while the ladder
+   is still armed.
+3. The USB2 root-port mapping on 04:00.4: sysfs '3-2' == MMIO port 5
+   (kernel root port numbering differs from MMIO port id by +3 here).
+4. Round-1 of the post-reboot sweep: window at shot 53 (descriptor
+   garbage serve), FIRE pad=0x6C0: ARM served (descriptor header in
+   rb), UAF(1792B) rc=0, payload rc=0, PR, verify - not pwned. Chip
+   went dark-class after the fire (wrong-floor smash survived).
+   Next pads: 0x700, 0x680, 0x740... one real fire per window.

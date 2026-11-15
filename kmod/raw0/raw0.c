@@ -1302,6 +1302,61 @@ static const struct file_operations raw0_fops = {
 
 /* ------------------------------------------------------------------ */
 
+/* kretprobe capture on xhci_alloc_dev: at function return we read
+ * the true retval and the slot id that xhci_alloc_dev assigned into
+ * udev->slot_id. (A plain kprobe's post_handler fires at entry+1,
+ * where retval and slot_id are not yet meaningful - measured.) The
+ * ftrace IPMODIFY hook was observed inert after a reboot; kprobes
+ * resolve fresh at module load and survive KASLR reshuffles. */
+struct kp_entry_data {
+	struct usb_hcd *hcd;
+	struct usb_device *udev;
+};
+
+static int kp_entry_handler(struct kretprobe_instance *ri,
+                            struct pt_regs *regs)
+{
+	struct kp_entry_data *d = (struct kp_entry_data *)ri->data;
+
+	d->hcd = (struct usb_hcd *)regs->di;
+	d->udev = (struct usb_device *)regs->si;
+	return 0;
+}
+
+static int kp_ret_handler(struct kretprobe_instance *ri,
+                          struct pt_regs *regs)
+{
+	struct kp_entry_data *d = (struct kp_entry_data *)ri->data;
+	struct xhci_hcd *xhci;
+	struct usb_device *udev = d->udev;
+	int retval = (int)regs_return_value(regs);
+	int slot;
+
+	if (!d->hcd || !udev || retval != 1)
+		return 0;
+	slot = udev->slot_id;
+	if (slot <= 0 || slot >= 256)
+		return 0;
+	xhci = hcd_to_xhci(d->hcd);
+	if (!xhci || !xhci->devs || !xhci->devs[slot])
+		return 0;
+	g_xhci = xhci;
+	g_slot = slot;
+	g_udev = udev;
+	pr_info("raw0: kret capture: slot=%d xhci=%px devnum=%d\n",
+	        slot, xhci, udev->devnum);
+	return 0;
+}
+
+static struct kretprobe rp_allocdev = {
+	.kp.symbol_name = "xhci_alloc_dev",
+	.handler = kp_ret_handler,
+	.entry_handler = kp_entry_handler,
+	.data_size = sizeof(struct kp_entry_data),
+	.maxactive = 16,
+};
+static int kret_allocdev_armed;
+
 static int __init raw0_init(void)
 {
 	struct kprobe kp = { .symbol_name = "xhci_setup_device" };
@@ -1400,6 +1455,14 @@ static int __init raw0_init(void)
 	 * keep it simple we use dma_map_single on the controller at capture
 	 * time is impossible here; we assume coherent<4GB via
 	 * dma_map_single(NULL,...) fallback below. */
+	ret = register_kretprobe(&rp_allocdev);
+	if (ret == 0) {
+		kret_allocdev_armed = 1;
+		pr_info("raw0: alloc-dev kretprobe capture armed\n");
+	} else {
+		pr_warn("raw0: alloc-dev kretprobe failed: %d\n", ret);
+	}
+
 	pr_info("raw0: ready - /dev/raw0 (push raw phase-level EP0 TDs)\n");
 	return 0;
 
@@ -1412,6 +1475,8 @@ err_cdev:
 err_chr:
 	unregister_chrdev_region(raw0_devt, 1);
 err_hook:
+	if (kret_allocdev_armed)
+		unregister_kretprobe(&rp_allocdev);
 	unregister_ftrace_function(&raw0_ops);
 	return ret;
 }

